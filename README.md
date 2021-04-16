@@ -3,11 +3,11 @@
 An indent file for vim.
 
 The indent files included with vim, and the other ones that I have tried,
-are very slow. When `profile`ing, they consistently marked as the functions that slow
-down vim the most.
+are very slow. When `profile`ing, they are consistently marked as the slowest
+functions.
 
 Here's the result of a `profile` of running `1000o<esc>` at the end of a large Python
-file:
+file with default indenting, and then with `fast-python-indent`:
 
 
 ```vim

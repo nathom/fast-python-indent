@@ -17,6 +17,7 @@ count  total (s)   self (s)  function
  1000   9.867825   9.862754  GetPythonIndent()
 " ...
 
+" fast-python-indent
 FUNCTIONS SORTED ON TOTAL TIME
 count  total (s)   self (s)  function
     1   0.023404   0.000086  <SNR>108_VimCloseCallback()

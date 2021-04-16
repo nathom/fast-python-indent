@@ -1,0 +1,3298 @@
+FUNCTION  ale#sign#SetSigns()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:419
+Called 1 time
+Total time:   0.007404
+ Self time:   0.000097
+
+count  total (s)   self (s)
+    1              0.000003     if !bufexists(str2nr(a:buffer))
+                                    " Stop immediately when attempting to set signs for a buffer which
+                                    " does not exist.
+                                    return
+    1              0.000000     endif
+                            
+                                " Find the current markers
+    1   0.001558   0.000016     let [l:is_dummy_sign_set, l:current_sign_list] =   ale#sign#FindCurrentSigns(a:buffer)
+                            
+                                " Update the line numbers for items from before which may have moved.
+    1   0.000559   0.000014     call s:UpdateLineNumbers(a:buffer, l:current_sign_list, a:loclist)
+                            
+                                " Group items after updating the line numbers.
+    1   0.000455   0.000008     let l:grouped_items = s:GroupLoclistItems(a:buffer, a:loclist)
+                            
+                                " Build a map of current and new signs, with the lines as the keys.
+    1   0.003605   0.000010     let l:sign_map = s:BuildSignMap(   a:buffer,   l:current_sign_list,   l:grouped_items,)
+                            
+    1   0.001187   0.000009     let l:command_list = ale#sign#GetSignCommands(   a:buffer,   l:is_dummy_sign_set,   l:sign_map,)
+                            
+                                " Change the sign column color if the option is on.
+    1              0.000002     if g:ale_change_sign_column_color && !empty(a:loclist)
+                                    highlight clear SignColumn
+                                    highlight link SignColumn ALESignColumnWithErrors
+    1              0.000001     endif
+                            
+    3              0.000003     for l:command in l:command_list
+    2              0.000012         silent! execute l:command
+    3              0.000002     endfor
+                            
+                                " Reset the sign column color when there are no more errors.
+    1              0.000002     if g:ale_change_sign_column_color && empty(a:loclist)
+                                    highlight clear SignColumn
+                                    highlight link SignColumn ALESignColumnWithoutErrors
+    1              0.000001     endif
+
+FUNCTION  <SNR>89_UsingModule()
+    Defined: ~/.vim/plugged/ale/ale_linters/python/flake8.vim:10
+Called 4 times
+Total time:   0.000079
+ Self time:   0.000037
+
+count  total (s)   self (s)
+    4   0.000076   0.000034     return ale#Var(a:buffer, 'python_flake8_options') =~# ' *-m flake8'
+
+FUNCTION  ale#linter#Get()
+    Defined: ~/.vim/plugged/ale/autoload/ale/linter.vim:366
+Called 1 time
+Total time:   0.000505
+ Self time:   0.000367
+
+count  total (s)   self (s)
+    1              0.000002     let l:possibly_duplicated_linters = []
+                            
+                                " Handle dot-separated filetypes.
+    2              0.000010     for l:original_filetype in split(a:original_filetypes, '\.')
+    1   0.000070   0.000009         let l:filetype = ale#linter#ResolveFiletype(l:original_filetype)
+    1   0.000031   0.000008         let l:linter_names = s:GetLinterNames(l:original_filetype)
+    1   0.000060   0.000006         let l:all_linters = ale#linter#GetAll(l:filetype)
+    1              0.000001         let l:filetype_linters = []
+                            
+    1              0.000003         if type(l:linter_names) is v:t_string && l:linter_names is# 'all'
+                                        let l:filetype_linters = l:all_linters
+    1              0.000002         elseif type(l:linter_names) is v:t_list
+                                        " Select only the linters we or the user has specified.
+   15              0.000011             for l:linter in l:all_linters
+   14              0.000044                 let l:name_list = [l:linter.name] + l:linter.aliases
+                            
+   27              0.000029                 for l:name in l:name_list
+   14              0.000032                     if index(l:linter_names, l:name) >= 0
+    1              0.000002                         call add(l:filetype_linters, l:linter)
+    1              0.000001                         break
+   13              0.000007                     endif
+   27              0.000013                 endfor
+   15              0.000008             endfor
+    1              0.000002         endif
+                            
+    1              0.000003         call extend(l:possibly_duplicated_linters, l:filetype_linters)
+    2              0.000004     endfor
+                            
+    1              0.000002     let l:name_list = []
+    1              0.000002     let l:combined_linters = []
+                            
+                                " Make sure we override linters so we don't get two with the same name,
+                                " like 'eslint' for both 'javascript' and 'typescript'
+                                "
+                                " Note that the reverse calls here modify the List variables.
+    2              0.000004     for l:linter in reverse(l:possibly_duplicated_linters)
+    1              0.000003         if index(l:name_list, l:linter.name) < 0
+    1              0.000003             call add(l:name_list, l:linter.name)
+    1              0.000002             call add(l:combined_linters, l:linter)
+    1              0.000001         endif
+    2              0.000001     endfor
+                            
+    1              0.000002     return reverse(l:combined_linters)
+
+FUNCTION  <SNR>102_HandleExit()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:151
+Called 1 time
+Total time:   0.022936
+ Self time:   0.000099
+
+count  total (s)   self (s)
+    1              0.000004     let l:buffer_info = get(g:ale_buffer_info, a:buffer)
+                            
+    1              0.000002     if empty(l:buffer_info)
+                                    return
+    1              0.000000     endif
+                            
+    1              0.000002     let l:linter = a:job_info.linter
+    1              0.000002     let l:executable = a:job_info.executable
+                            
+                                " Remove this job from the list.
+    1   0.000017   0.000007     call ale#engine#MarkLinterInactive(l:buffer_info, l:linter.name)
+                            
+                                " Stop here if we land in the handle for a job completing if we're in
+                                " a sandbox.
+    1   0.000025   0.000005     if ale#util#InSandbox()
+                                    return
+    1              0.000000     endif
+                            
+    1              0.000006     if has('nvim') && !empty(a:output) && empty(a:output[-1])
+                                    call remove(a:output, -1)
+    1              0.000001     endif
+                            
+    1              0.000001     try
+    1   0.003186   0.000041         let l:loclist = ale#util#GetFunction(l:linter.callback)(a:buffer, a:output)
+                                " Handle the function being unknown, or being deleted.
+                                catch /E700/
+                                    let l:loclist = []
+    1              0.000001     endtry
+                            
+    1   0.019676   0.000014     call ale#engine#HandleLoclist(l:linter.name, a:buffer, l:loclist, 0)
+
+FUNCTION  ale#python#FindProjectRootIni()
+    Defined: ~/.vim/plugged/ale/autoload/ale/python.vim:19
+Called 1 time
+Total time:   0.000578
+ Self time:   0.000492
+
+count  total (s)   self (s)
+    5   0.000134   0.000048     for l:path in ale#path#Upwards(expand('#' . a:buffer . ':p:h'))
+                                    " If you change this, update ale-python-root documentation.
+    4              0.000416         if filereadable(l:path . '/MANIFEST.in')|| filereadable(l:path . '/setup.cfg')|| filereadable(l:path . '/pytest.ini')|| filereadable(l:path . '/tox.ini')|| filereadable(l:path . '/mypy.ini')|| filereadable(l:path . '/pycodestyle.cfg')|| filereadable(l:path . '/.flake8')|| filereadable(l:path . '/.flake8rc')|| filereadable(l:path . '/pylama.ini')|| filereadable(l:path . '/pylintrc')|| filereadable(l:path . '/.pylintrc')|| filereadable(l:path . '/Pipfile')|| filereadable(l:path . '/Pipfile.lock')|| filereadable(l:path . '/poetry.lock')|| filereadable(l:path . '/pyproject.toml')
+                                        return l:path
+    4              0.000001         endif
+    5              0.000004     endfor
+                            
+    1              0.000001     return ''
+
+FUNCTION  ale#command#CdString()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:173
+Called 1 time
+Total time:   0.000094
+ Self time:   0.000094
+
+count  total (s)   self (s)
+    1              0.000038     let l:match = matchstrpos(a:directory, s:path_format_regex)
+                                " Do not escape the directory here if it's a valid format string.
+                                " This allows us to use sequences like %s:h, %s:h:h, etc.
+    1              0.000040     let l:directory = l:match[1:] == [0, len(a:directory)]   ? a:directory   : ale#Escape(a:directory)
+                            
+    1              0.000005     if has('win32')
+                                    return 'cd /d ' . l:directory . ' && '
+    1              0.000001     endif
+                            
+    1              0.000002     return 'cd ' . l:directory . ' && '
+
+FUNCTION  ale#sign#FindCurrentSigns()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:231
+Called 1 time
+Total time:   0.001542
+ Self time:   0.000015
+
+count  total (s)   self (s)
+    1   0.000133   0.000007     let l:line_list = ale#sign#ReadSigns(a:buffer)
+                            
+    1   0.001408   0.000007     return ale#sign#ParseSigns(l:line_list)
+
+FUNCTION  ale#command#ManageDirectory()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:50
+Called 1 time
+Total time:   0.000021
+ Self time:   0.000011
+
+count  total (s)   self (s)
+    1   0.000015   0.000005     call ale#command#InitData(a:buffer)
+    1              0.000005     call add(s:buffer_data[a:buffer].directory_list, a:directory)
+
+FUNCTION  ale#sign#GetSignName()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:120
+Called 38 times
+Total time:   0.001725
+ Self time:   0.001129
+
+count  total (s)   self (s)
+   38              0.000056     let l:priority = g:ale#util#style_warning_priority
+                            
+                                " Determine the highest priority item for the line.
+   79              0.000084     for l:item in a:sublist
+   41   0.000794   0.000198         let l:item_priority = ale#util#GetItemPriority(l:item)
+                            
+   41              0.000054         if l:item_priority > l:priority
+   38              0.000052             let l:priority = l:item_priority
+   41              0.000018         endif
+   79              0.000061     endfor
+                            
+   38              0.000047     if l:priority is# g:ale#util#error_priority
+                                    return 'ALEErrorSign'
+   38              0.000023     endif
+                            
+   38              0.000041     if l:priority is# g:ale#util#warning_priority
+                                    return 'ALEWarningSign'
+   38              0.000024     endif
+                            
+   38              0.000043     if l:priority is# g:ale#util#style_error_priority
+   38              0.000036         return 'ALEStyleErrorSign'
+                                endif
+                            
+                                if l:priority is# g:ale#util#style_warning_priority
+                                    return 'ALEStyleWarningSign'
+                                endif
+                            
+                                if l:priority is# g:ale#util#info_priority
+                                    return 'ALEInfoSign'
+                                endif
+                            
+                                " Use the error sign for invalid severities.
+                                return 'ALEErrorSign'
+
+FUNCTION  <SNR>103_GatherOutput()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:281
+Called 41 times
+Total time:   0.000115
+ Self time:   0.000115
+
+count  total (s)   self (s)
+   41              0.000108     call add(a:line_list, a:line)
+
+FUNCTION  <SNR>87_GetAliasedFiletype()
+    Defined: ~/.vim/plugged/ale/autoload/ale/linter.vim:293
+Called 1 time
+Total time:   0.000046
+ Self time:   0.000046
+
+count  total (s)   self (s)
+    1              0.000005     let l:buffer_aliases = get(b:, 'ale_linter_aliases', {})
+                            
+                                " b:ale_linter_aliases can be set to a List or String.
+    1              0.000005     if type(l:buffer_aliases) is v:t_list|| type(l:buffer_aliases) is v:t_string
+                                    return l:buffer_aliases
+    1              0.000000     endif
+                            
+                                " Check for aliased filetypes first in a buffer variable,
+                                " then the global variable,
+                                " then in the default mapping,
+                                " otherwise use the original filetype.
+    4              0.000007     for l:dict in [   l:buffer_aliases,   g:ale_linter_aliases,   s:default_ale_linter_aliases,]
+    3              0.000008         if has_key(l:dict, a:original_filetype)
+                                        return l:dict[a:original_filetype]
+    3              0.000000         endif
+    4              0.000002     endfor
+                            
+    1              0.000002     return a:original_filetype
+
+FUNCTION  ale#GetFilenameMappings()
+    Defined: ~/.vim/plugged/ale/autoload/ale.vim:269
+Called 2 times
+Total time:   0.000077
+ Self time:   0.000047
+
+count  total (s)   self (s)
+    2   0.000045   0.000015     let l:linter_mappings = ale#Var(a:buffer, 'filename_mappings')
+                            
+    2              0.000006     if type(l:linter_mappings) is v:t_list
+                                    return l:linter_mappings
+    2              0.000002     endif
+                            
+    2              0.000004     let l:name = a:name
+                            
+    2              0.000005     if !has_key(l:linter_mappings, l:name)
+                                    " Use * as a default setting for all tools.
+    2              0.000003         let l:name = '*'
+    2              0.000001     endif
+                            
+    2              0.000005     return get(l:linter_mappings, l:name, [])
+
+FUNCTION  ale_linters#python#flake8#Handle()
+    Defined: ~/.vim/plugged/ale/ale_linters/python/flake8.vim:90
+Called 1 time
+Total time:   0.003109
+ Self time:   0.001958
+
+count  total (s)   self (s)
+    1   0.000178   0.000031     let l:output = ale#python#HandleTraceback(a:lines, 10)
+                            
+    1              0.000003     if !empty(l:output)
+                                    return l:output
+    1              0.000000     endif
+                            
+                                " Matches patterns line the following:
+                                "
+                                " Matches patterns line the following:
+                                "
+                                " stdin:6:6: E111 indentation is not a multiple of four
+    1              0.000002     let l:pattern = '\v^[a-zA-Z]?:?[^:]+:(\d+):?(\d+)?: ([[:alnum:]]+):? (.*)$'
+                            
+   42   0.001119   0.000115     for l:match in ale#util#GetMatches(a:lines, l:pattern)
+   41              0.000066         let l:code = l:match[3]
+                            
+   41              0.000115         if (l:code is# 'W291' || l:code is# 'W293') && !ale#Var(a:buffer, 'warn_about_trailing_whitespace')
+                                        " Skip warnings for trailing whitespace if the option is off.
+                                        continue
+   41              0.000019         endif
+                            
+   41              0.000081         if l:code is# 'W391'&& !ale#Var(a:buffer, 'warn_about_trailing_blank_lines')
+                                        " Skip warnings for trailing blank lines if the option is off
+                                        continue
+   41              0.000019         endif
+                            
+   41              0.000240         let l:item = {   'lnum': l:match[1] + 0,   'col': l:match[2] + 0,   'vcol': 1,   'text': l:match[4],   'code': l:code,   'type': 'W',}
+                            
+   41              0.000062         if l:code[:0] is# 'F'
+                                        if l:code isnot# 'F401'
+                                            let l:item.type = 'E'
+                                        endif
+   41              0.000063         elseif l:code[:0] is# 'E'
+   41              0.000044             let l:item.type = 'E'
+                            
+   41              0.000071             if l:code isnot# 'E999' && l:code isnot# 'E112'
+   41              0.000055                 let l:item.sub_type = 'style'
+   41              0.000025             endif
+                                    elseif l:code[:0] is# 'W'
+                                        let l:item.sub_type = 'style'
+   41              0.000020         endif
+                            
+   41              0.000118         let l:end_col_pattern = get(s:end_col_pattern_map, l:code, '')
+                            
+   41              0.000071         if !empty(l:end_col_pattern)
+                                        let l:end_col_match = matchlist(l:match[4], l:end_col_pattern)
+                            
+                                        if !empty(l:end_col_match)
+                                            let l:item.end_col = l:item.col + len(l:end_col_match[1]) - 1
+                                        endif
+   41              0.000020         endif
+                            
+   41              0.000072         call add(l:output, l:item)
+   42              0.000028     endfor
+                            
+    1              0.000001     return l:output
+
+FUNCTION  ale#job#Start()
+    Defined: ~/.vim/plugged/ale/autoload/ale/job.vim:215
+Called 1 time
+Total time:   0.000793
+ Self time:   0.000751
+
+count  total (s)   self (s)
+    1   0.000012   0.000007     call ale#job#ValidateArguments(a:command, a:options)
+                            
+    1              0.000004     let l:job_info = copy(a:options)
+    1              0.000001     let l:job_options = {}
+                            
+    1              0.000003     if has('nvim')
+                                    if has_key(a:options, 'out_cb')
+                                        let l:job_options.on_stdout = function('s:NeoVimCallback')
+                                        let l:job_info.out_cb_line = ''
+                                    endif
+                            
+                                    if has_key(a:options, 'err_cb')
+                                        let l:job_options.on_stderr = function('s:NeoVimCallback')
+                                        let l:job_info.err_cb_line = ''
+                                    endif
+                            
+                                    if has_key(a:options, 'exit_cb')
+                                        let l:job_options.on_exit = function('s:NeoVimCallback')
+                                    endif
+                            
+                                    let l:job_info.job = jobstart(a:command, l:job_options)
+                                    let l:job_id = l:job_info.job
+    1              0.000001     else
+    1              0.000004         let l:job_options = {   'in_mode': l:job_info.mode,   'out_mode': l:job_info.mode,   'err_mode': l:job_info.mode,}
+                            
+    1              0.000002         if has_key(a:options, 'out_cb')
+    1              0.000004             let l:job_options.out_cb = function('s:VimOutputCallback')
+    1              0.000000         endif
+                            
+    1              0.000002         if has_key(a:options, 'err_cb')
+                                        let l:job_options.err_cb = function('s:VimErrorCallback')
+    1              0.000000         endif
+                            
+    1              0.000002         if has_key(a:options, 'exit_cb')
+                                        " Set a close callback to which simply calls job_status()
+                                        " when the channel is closed, which can trigger the exit callback
+                                        " earlier on.
+    1              0.000003             let l:job_options.close_cb = function('s:VimCloseCallback')
+    1              0.000003             let l:job_options.exit_cb = function('s:VimExitCallback')
+    1              0.000001         endif
+                            
+                                    " Use non-blocking writes for Vim versions that support the option.
+    1              0.000003         if has('patch-8.1.350')
+    1              0.000002             let l:job_options.noblock = 1
+    1              0.000000         endif
+                            
+                                    " Vim 8 will read the stdin from the file's buffer.
+    1              0.000593         let l:job_info.job = job_start(a:command, l:job_options)
+    1   0.000093   0.000056         let l:job_id = ale#job#ParseVim8ProcessID(string(l:job_info.job))
+    1              0.000005     endif
+                            
+    1              0.000002     if l:job_id > 0
+                                    " Store the job in the map for later only if we can get the ID.
+    1              0.000011         let s:job_map[l:job_id] = l:job_info
+    1              0.000000     endif
+                            
+    1              0.000004     return l:job_id
+
+FUNCTION  ale#command#SetCwd()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:34
+Called 2 times
+Total time:   0.000036
+ Self time:   0.000018
+
+count  total (s)   self (s)
+    2   0.000029   0.000011     call ale#command#InitData(a:buffer)
+    2              0.000006     let s:buffer_data[a:buffer].cwd = a:cwd
+
+FUNCTION  ale_linters#python#flake8#GetCommand()
+    Defined: ~/.vim/plugged/ale/ale_linters/python/flake8.vim:62
+Called 1 time
+Total time:   0.002094
+ Self time:   0.000043
+
+count  total (s)   self (s)
+    1   0.002017   0.000008     let l:executable = ale_linters#python#flake8#GetExecutable(a:buffer)
+                            
+    1              0.000006     let l:exec_args = l:executable =~? 'pipenv$'   ? ' run flake8'   : ''
+                            
+                                " Only include the --stdin-display-name argument if we can parse the
+                                " flake8 version, and it is recent enough to support it.
+    1   0.000022   0.000009     let l:display_name_args = ale#semver#GTE(a:version, [3, 0, 0])   ? ' --stdin-display-name %s'   : ''
+                            
+    1   0.000017   0.000005     let l:options = ale#Var(a:buffer, 'python_flake8_options')
+                            
+    1   0.000028   0.000011     return ale#Escape(l:executable) . l:exec_args   . (!empty(l:options) ? ' ' . l:options : '')   . ' --format=default'   . l:display_name_args . ' -'
+
+FUNCTION  ale_linters#python#flake8#RunWithVersionCheck()
+    Defined: ~/.vim/plugged/ale/ale_linters/python/flake8.vim:27
+Called 1 time
+Total time:   0.004055
+ Self time:   0.000033
+
+count  total (s)   self (s)
+    1   0.001879   0.000006     let l:executable = ale_linters#python#flake8#GetExecutable(a:buffer)
+                            
+    1   0.000026   0.000007     let l:module_string = s:UsingModule(a:buffer) ? ' -m flake8' : ''
+    1   0.000024   0.000008     let l:command = ale#Escape(l:executable) . l:module_string . ' --version'
+                            
+    1   0.002125   0.000011     return ale#semver#RunWithVersionCheck(   a:buffer,   l:executable,   l:command,   function('ale_linters#python#flake8#GetCommand'),)
+
+FUNCTION  ale#history#RememberOutput()
+    Defined: ~/.vim/plugged/ale/autoload/ale/history.vim:58
+Called 1 time
+Total time:   0.000031
+ Self time:   0.000011
+
+count  total (s)   self (s)
+    1   0.000028   0.000008     let l:obj = s:FindHistoryItem(a:buffer, a:job_id)
+                            
+    1              0.000002     let l:obj.output = a:output
+
+FUNCTION  ale#ShouldDoNothing()
+    Defined: ~/.vim/plugged/ale/autoload/ale.vim:32
+Called 5 times
+Total time:   0.000572
+ Self time:   0.000422
+
+count  total (s)   self (s)
+                                " The checks are split into separate if statements to make it possible to
+                                " profile each check individually with Vim's profiling tools.
+                                "
+                                " Do nothing if ALE is disabled.
+    5              0.000026     if !getbufvar(a:buffer, 'ale_enabled', get(g:, 'ale_enabled', 0))
+                                    return 1
+    5              0.000003     endif
+                            
+                                " Don't perform any checks when newer NeoVim versions are exiting.
+    5              0.000016     if get(v:, 'exiting', v:null) isnot v:null
+                                    return 1
+    5              0.000005     endif
+                            
+    5              0.000021     let l:filetype = getbufvar(a:buffer, '&filetype')
+                            
+                                " Do nothing when there's no filetype.
+    5              0.000007     if l:filetype is# ''
+                                    return 1
+    5              0.000002     endif
+                            
+                                " Do nothing for diff buffers.
+    5              0.000013     if getbufvar(a:buffer, '&diff')
+                                    return 1
+    5              0.000003     endif
+                            
+                                " Do nothing for blacklisted files.
+    5              0.000028     if index(get(g:, 'ale_filetype_blacklist', []), l:filetype) >= 0
+                                    return 1
+    5              0.000003     endif
+                            
+                                " Do nothing if running from command mode.
+    5              0.000018     if s:getcmdwintype_exists && !empty(getcmdwintype())
+                                    return 1
+    5              0.000003     endif
+                            
+    5              0.000025     let l:filename = fnamemodify(bufname(a:buffer), ':t')
+                            
+                                " Do nothing for directories.
+    5              0.000005     if l:filename is# '.'
+                                    return 1
+    5              0.000001     endif
+                            
+                                " Don't start linting and so on when an operator is pending.
+    5   0.000050   0.000029     if ale#util#Mode(1) is# 'no'
+                                    return 1
+    5              0.000002     endif
+                            
+                                " Do nothing if running in the sandbox.
+    5   0.000104   0.000025     if ale#util#InSandbox()
+                                    return 1
+    5              0.000003     endif
+                            
+                                " Do nothing if the file is too large.
+    5   0.000076   0.000026     if ale#FileTooLarge(a:buffer)
+                                    return 1
+    5              0.000004     endif
+                            
+                                " Do nothing from CtrlP buffers with CtrlP-funky.
+    5              0.000036     if exists(':CtrlPFunky') is 2&& getbufvar(a:buffer, '&l:statusline') =~# 'CtrlPMode.*funky'
+                                    return 1
+    5              0.000004     endif
+                            
+    5              0.000003     return 0
+
+FUNCTION  ale#job#ValidateArguments()
+    Defined: ~/.vim/plugged/ale/autoload/ale/job.vim:144
+Called 1 time
+Total time:   0.000005
+ Self time:   0.000005
+
+count  total (s)   self (s)
+    1              0.000003     if a:options.mode isnot# 'nl' && a:options.mode isnot# 'raw'
+                                    throw 'Invalid mode: ' . a:options.mode
+    1              0.000001     endif
+
+FUNCTION  ale#sign#ParseSigns()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:207
+Called 1 time
+Total time:   0.001401
+ Self time:   0.001389
+
+count  total (s)   self (s)
+    1   0.000018   0.000006     let l:pattern =ale#sign#ParsePattern()
+    1              0.000001     let l:result = []
+    1              0.000001     let l:is_dummy_sign_set = 0
+                            
+   41              0.000030     for l:line in a:line_list
+   40              0.000849         let l:match = matchlist(l:line, l:pattern)
+                            
+   40              0.000069         if len(l:match) > 0
+   38              0.000060             if l:match[3] is# 'ALEDummySign'
+                                            let l:is_dummy_sign_set = 1
+   38              0.000026             else
+   38              0.000198                 call add(l:result, [   str2nr(l:match[1]),   str2nr(l:match[2]),   l:match[3],])
+   38              0.000027             endif
+   40              0.000011         endif
+   41              0.000028     endfor
+                            
+    1              0.000002     return [l:is_dummy_sign_set, l:result]
+
+FUNCTION  ale#engine#MarkLinterActive()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:28
+Called 1 time
+Total time:   0.000021
+ Self time:   0.000021
+
+count  total (s)   self (s)
+    1              0.000001     let l:found = 0
+                            
+    1              0.000007     for l:other_linter in a:info.active_linter_list
+                                    if l:other_linter.name is# a:linter.name
+                                        let l:found = 1
+                                        break
+                                    endif
+    1              0.000002     endfor
+                            
+    1              0.000001     if !l:found
+    1              0.000003         call add(a:info.active_linter_list, a:linter)
+    1              0.000001     endif
+
+FUNCTION  ale#util#Writefile()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:421
+Called 1 time
+Total time:   0.002257
+ Self time:   0.002257
+
+count  total (s)   self (s)
+    1              0.000009     let l:corrected_lines = getbufvar(a:buffer, '&fileformat') is# 'dos'   ? map(copy(a:lines), 'substitute(v:val, ''\r*$'', ''\r'', '''')')   : a:lines
+                            
+                                " Set binary flag if buffer doesn't have eol and nofixeol to avoid appending newline
+    1              0.000009     let l:flags = !getbufvar(a:buffer, '&eol') && exists('+fixeol') && !&fixeol ? 'bS' : 'S'
+                            
+    1              0.002237     call writefile(l:corrected_lines, a:filename, l:flags) " no-custom-checks
+
+FUNCTION  <SNR>63_Highlight_Matching_Pair()
+    Defined: /Applications/MacVim.app/Contents/Resources/vim/runtime/plugin/matchparen.vim:40
+Called 4 times
+Total time:   0.000357
+ Self time:   0.000314
+
+count  total (s)   self (s)
+                              " Remove any previous match.
+    4   0.000063   0.000020   call s:Remove_Matches()
+                            
+                              " Avoid that we remove the popup menu.
+                              " Return when there are no colors (looks like the cursor jumps).
+    4              0.000016   if pumvisible() || (&t_Co < 8 && !has("gui_running"))
+                                return
+    4              0.000002   endif
+                            
+                              " Get the character under the cursor and check if it's in 'matchpairs'.
+    4              0.000010   let c_lnum = line('.')
+    4              0.000008   let c_col = col('.')
+    4              0.000004   let before = 0
+                            
+    4              0.000009   let text = getline(c_lnum)
+    4              0.000056   let matches = matchlist(text, '\(.\)\=\%'.c_col.'c\(.\=\)')
+    4              0.000006   if empty(matches)
+                                let [c_before, c] = ['', '']
+    4              0.000002   else
+    4              0.000016     let [c_before, c] = matches[1:2]
+    4              0.000002   endif
+    4              0.000048   let plist = split(&matchpairs, '.\zs[:,]')
+    4              0.000011   let i = index(plist, c)
+    4              0.000004   if i < 0
+                                " not found, in Insert mode try character before the cursor
+    4              0.000023     if c_col > 1 && (mode() == 'i' || mode() == 'R')
+    2              0.000005       let before = strlen(c_before)
+    2              0.000003       let c = c_before
+    2              0.000004       let i = index(plist, c)
+    4              0.000002     endif
+    4              0.000003     if i < 0
+                                  " not found, nothing to do
+    4              0.000002       return
+                                endif
+                              endif
+                            
+                              " Figure out the arguments for searchpairpos().
+                              if i % 2 == 0
+                                let s_flags = 'nW'
+                                let c2 = plist[i + 1]
+                              else
+                                let s_flags = 'nbW'
+                                let c2 = c
+                                let c = plist[i - 1]
+                              endif
+                              if c == '['
+                                let c = '\['
+                                let c2 = '\]'
+                              endif
+                            
+                              " Find the match.  When it was just before the cursor move it there for a
+                              " moment.
+                              if before > 0
+                                let has_getcurpos = exists("*getcurpos")
+                                if has_getcurpos
+                                  " getcurpos() is more efficient but doesn't exist before 7.4.313.
+                                  let save_cursor = getcurpos()
+                                else
+                                  let save_cursor = winsaveview()
+                                endif
+                                call cursor(c_lnum, c_col - before)
+                              endif
+                            
+                              if !has("syntax") || !exists("g:syntax_on")
+                                let s_skip = "0"
+                              else
+                                " Build an expression that detects whether the current cursor position is
+                                " in certain syntax types (string, comment, etc.), for use as
+                                " searchpairpos()'s skip argument.
+                                " We match "escape" for special items, such as lispEscapeSpecial.
+                                let s_skip = '!empty(filter(map(synstack(line("."), col(".")), ''synIDattr(v:val, "name")''), ' . '''v:val =~? "string\\|character\\|singlequote\\|escape\\|comment"''))'
+                                " If executing the expression determines that the cursor is currently in
+                                " one of the syntax types, then we want searchpairpos() to find the pair
+                                " within those syntax types (i.e., not skip).  Otherwise, the cursor is
+                                " outside of the syntax types and s_skip should keep its value so we skip
+                                " any matching pair inside the syntax types.
+                                " Catch if this throws E363: pattern uses more memory than 'maxmempattern'.
+                                try
+                                  execute 'if ' . s_skip . ' | let s_skip = "0" | endif'
+                                catch /^Vim\%((\a\+)\)\=:E363/
+                                  " We won't find anything, so skip searching, should keep Vim responsive.
+                                  return
+                                endtry
+                              endif
+                            
+                              " Limit the search to lines visible in the window.
+                              let stoplinebottom = line('w$')
+                              let stoplinetop = line('w0')
+                              if i % 2 == 0
+                                let stopline = stoplinebottom
+                              else
+                                let stopline = stoplinetop
+                              endif
+                            
+                              " Limit the search time to 300 msec to avoid a hang on very long lines.
+                              " This fails when a timeout is not supported.
+                              if mode() == 'i' || mode() == 'R'
+                                let timeout = exists("b:matchparen_insert_timeout") ? b:matchparen_insert_timeout : g:matchparen_insert_timeout
+                              else
+                                let timeout = exists("b:matchparen_timeout") ? b:matchparen_timeout : g:matchparen_timeout
+                              endif
+                              try
+                                let [m_lnum, m_col] = searchpairpos(c, '', c2, s_flags, s_skip, stopline, timeout)
+                              catch /E118/
+                                " Can't use the timeout, restrict the stopline a bit more to avoid taking
+                                " a long time on closed folds and long lines.
+                                " The "viewable" variables give a range in which we can scroll while
+                                " keeping the cursor at the same position.
+                                " adjustedScrolloff accounts for very large numbers of scrolloff.
+                                let adjustedScrolloff = min([&scrolloff, (line('w$') - line('w0')) / 2])
+                                let bottom_viewable = min([line('$'), c_lnum + &lines - adjustedScrolloff - 2])
+                                let top_viewable = max([1, c_lnum-&lines+adjustedScrolloff + 2])
+                                " one of these stoplines will be adjusted below, but the current values are
+                                " minimal boundaries within the current window
+                                if i % 2 == 0
+                                  if has("byte_offset") && has("syntax_items") && &smc > 0
+                            	let stopbyte = min([line2byte("$"), line2byte(".") + col(".") + &smc * 2])
+                            	let stopline = min([bottom_viewable, byte2line(stopbyte)])
+                                  else
+                            	let stopline = min([bottom_viewable, c_lnum + 100])
+                                  endif
+                                  let stoplinebottom = stopline
+                                else
+                                  if has("byte_offset") && has("syntax_items") && &smc > 0
+                            	let stopbyte = max([1, line2byte(".") + col(".") - &smc * 2])
+                            	let stopline = max([top_viewable, byte2line(stopbyte)])
+                                  else
+                            	let stopline = max([top_viewable, c_lnum - 100])
+                                  endif
+                                  let stoplinetop = stopline
+                                endif
+                                let [m_lnum, m_col] = searchpairpos(c, '', c2, s_flags, s_skip, stopline)
+                              endtry
+                            
+                              if before > 0
+                                if has_getcurpos
+                                  call setpos('.', save_cursor)
+                                else
+                                  call winrestview(save_cursor)
+                                endif
+                              endif
+                            
+                              " If a match is found setup match highlighting.
+                              if m_lnum > 0 && m_lnum >= stoplinetop && m_lnum <= stoplinebottom 
+                                if exists('*matchaddpos')
+                                  call matchaddpos('MatchParen', [[c_lnum, c_col - before], [m_lnum, m_col]], 10, 3)
+                                else
+                                  exe '3match MatchParen /\(\%' . c_lnum . 'l\%' . (c_col - before) . 'c\)\|\(\%' . m_lnum . 'l\%' . m_col . 'c\)/'
+                                endif
+                                let w:paren_hl_on = 1
+                              endif
+
+FUNCTION  ale#sign#GetSignCommands()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:353
+Called 1 time
+Total time:   0.001178
+ Self time:   0.001170
+
+count  total (s)   self (s)
+    1              0.000002     let l:command_list = []
+    1              0.000001     let l:is_dummy_sign_set = a:was_sign_set
+                            
+                                " Set the dummy sign if we need to.
+                                " The dummy sign is needed to keep the sign column open while we add
+                                " and remove signs.
+    1              0.000003     if !l:is_dummy_sign_set && (!empty(a:sign_map) || g:ale_sign_column_always)
+    1   0.000021   0.000015         call add(l:command_list, 'sign place '   .  g:ale_sign_offset   . s:GroupCmd()   . s:PriorityCmd()   . ' line=1 name=ALEDummySign '   . ' buffer=' . a:buffer)
+    1              0.000001         let l:is_dummy_sign_set = 1
+    1              0.000001     endif
+                            
+                                " Place new items first.
+   39              0.000072     for [l:line_str, l:info] in items(a:sign_map)
+   38              0.000031         if l:info.new_id
+                                        " Save the sign IDs we are setting back on our loclist objects.
+                                        " These IDs will be used to preserve items which are set many times.
+   79              0.000073             for l:item in l:info.items
+   41              0.000056                 let l:item.sign_id = l:info.new_id
+   79              0.000040             endfor
+                            
+   38              0.000069             if index(l:info.current_id_list, l:info.new_id) < 0
+                                            call add(l:command_list, 'sign place '   . (l:info.new_id)   . s:GroupCmd()   . s:PriorityCmd()   . ' line=' . l:line_str   . ' name=' . (l:info.new_name)   . ' buffer=' . a:buffer)
+   38              0.000018             endif
+   38              0.000020         endif
+   39              0.000014     endfor
+                            
+                                " Remove signs without new IDs.
+   39              0.000031     for l:info in values(a:sign_map)
+   76              0.000078         for l:current_id in l:info.current_id_list
+   38              0.000043             if l:current_id isnot l:info.new_id
+                                            call add(l:command_list, 'sign unplace '   . l:current_id   . s:GroupCmd()   . ' buffer=' . a:buffer)
+   38              0.000020             endif
+   76              0.000034         endfor
+   39              0.000017     endfor
+                            
+                                " Remove the dummy sign to close the sign column if we need to.
+    1              0.000002     if l:is_dummy_sign_set && !g:ale_sign_column_always
+    1   0.000012   0.000010         call add(l:command_list, 'sign unplace '   . g:ale_sign_offset   . s:GroupCmd()   . ' buffer=' . a:buffer)
+    1              0.000000     endif
+                            
+    1              0.000001     return l:command_list
+
+FUNCTION  ale#GetLocItemMessage()
+    Defined: ~/.vim/plugged/ale/autoload/ale.vim:239
+Called 41 times
+Total time:   0.002063
+ Self time:   0.002063
+
+count  total (s)   self (s)
+   41              0.000052     let l:msg = a:format_string
+   41              0.000051     let l:severity = g:ale_echo_msg_warning_str
+   41              0.000093     let l:code = get(a:item, 'code', '')
+   41              0.000086     let l:type = get(a:item, 'type', 'E')
+   41              0.000105     let l:linter_name = get(a:item, 'linter_name', '')
+   41              0.000121     let l:code_repl = !empty(l:code) ? '\=submatch(1) . l:code . submatch(2)' : ''
+                            
+   41              0.000046     if l:type is# 'E'
+   41              0.000055         let l:severity = g:ale_echo_msg_error_str
+                                elseif l:type is# 'I'
+                                    let l:severity = g:ale_echo_msg_info_str
+   41              0.000025     endif
+                            
+                                " Replace special markers with certain information.
+                                " \=l:variable is used to avoid escaping issues.
+   41              0.000438     let l:msg = substitute(l:msg, '\v\%([^\%]*)code([^\%]*)\%', l:code_repl, 'g')
+   41              0.000175     let l:msg = substitute(l:msg, '\V%severity%', '\=l:severity', 'g')
+   41              0.000164     let l:msg = substitute(l:msg, '\V%linter%', '\=l:linter_name', 'g')
+                                " Replace %s with the text.
+   41              0.000204     let l:msg = substitute(l:msg, '\V%s', '\=a:item.text', 'g')
+                                " Windows may insert carriage return line endings (^M), strip these characters.
+   41              0.000152     let l:msg = substitute(l:msg, '\r', '', 'g')
+                            
+   41              0.000041     return l:msg
+
+FUNCTION  <SNR>103_FormatFilename()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:156
+Called 2 times
+Total time:   0.000073
+ Self time:   0.000042
+
+count  total (s)   self (s)
+    2              0.000005     let l:filename = a:filename
+                            
+    2              0.000005     if !empty(a:mappings)
+                                    let l:filename = ale#filename_mapping#Map(l:filename, a:mappings)
+    2              0.000000     endif
+                            
+    2              0.000003     if !empty(a:modifiers)
+    1              0.000005         let l:filename = fnamemodify(l:filename, a:modifiers)
+    2              0.000001     endif
+                            
+    2   0.000042   0.000011     return ale#Escape(l:filename)
+
+FUNCTION  ale#engine#InitBufferInfo()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:82
+Called 1 time
+Total time:   0.000012
+ Self time:   0.000012
+
+count  total (s)   self (s)
+    1              0.000003     if !has_key(g:ale_buffer_info, a:buffer)
+                                    " active_linter_list will hold the list of active linter names
+                                    " loclist holds the loclist items after all jobs have completed.
+                                    let g:ale_buffer_info[a:buffer] = {   'active_linter_list': [],   'active_other_sources_list': [],   'loclist': [],}
+                            
+                                    return 1
+    1              0.000000     endif
+                            
+    1              0.000000     return 0
+
+FUNCTION  ale#FileTooLarge()
+    Defined: ~/.vim/plugged/ale/autoload/ale.vim:24
+Called 5 times
+Total time:   0.000050
+ Self time:   0.000050
+
+count  total (s)   self (s)
+    5              0.000027     let l:max = getbufvar(a:buffer, 'ale_maximum_file_size', get(g:, 'ale_maximum_file_size', 0))
+                            
+    5              0.000018     return l:max > 0 ? (line2byte(line('$') + 1) > l:max) : 0
+
+FUNCTION  <SNR>112_ShouldOpen()
+    Defined: ~/.vim/plugged/ale/autoload/ale/list.vim:40
+Called 2 times
+Total time:   0.000041
+ Self time:   0.000021
+
+count  total (s)   self (s)
+    2   0.000029   0.000009     let l:val = ale#Var(a:buffer, 'open_list')
+    2              0.000005     let l:saved = getbufvar(a:buffer, 'ale_save_event_fired', 0)
+                            
+    2              0.000005     return l:val is 1 || (l:val is# 'on_save' && l:saved)
+
+FUNCTION  ale#engine#MarkLinterInactive()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:43
+Called 1 time
+Total time:   0.000010
+ Self time:   0.000010
+
+count  total (s)   self (s)
+    1              0.000009     call filter(a:info.active_linter_list, 'v:val.name isnot# a:linter_name')
+
+FUNCTION  ale#engine#IsCheckingBuffer()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:101
+Called 3 times
+Total time:   0.000040
+ Self time:   0.000040
+
+count  total (s)   self (s)
+    3              0.000015     let l:info = get(g:ale_buffer_info, a:buffer, {})
+                            
+    3              0.000021     return !empty(get(l:info, 'active_linter_list', []))   || !empty(get(l:info, 'active_other_sources_list', []))
+
+FUNCTION  ale#command#ResetCwd()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:39
+Called 2 times
+Total time:   0.000014
+ Self time:   0.000014
+
+count  total (s)   self (s)
+    2              0.000005     if has_key(s:buffer_data, a:buffer)
+    2              0.000006         let s:buffer_data[a:buffer].cwd = v:null
+    2              0.000002     endif
+
+FUNCTION  ale#Var()
+    Defined: ~/.vim/plugged/ale/autoload/ale.vim:180
+Called 43 times
+Total time:   0.000538
+ Self time:   0.000538
+
+count  total (s)   self (s)
+   43              0.000102     let l:full_name = 'ale_' . a:variable_name
+   43              0.000205     let l:vars = getbufvar(str2nr(a:buffer), '', {})
+                            
+   43              0.000170     return get(l:vars, l:full_name, g:[l:full_name])
+
+FUNCTION  ale#command#FormatCommand()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:192
+Called 1 time
+Total time:   0.003717
+ Self time:   0.000632
+
+count  total (s)   self (s)
+    1              0.000002     let l:temporary_file = ''
+    1              0.000001     let l:command = a:command
+                            
+    1              0.000002     if !empty(a:cwd)
+    1   0.000130   0.000036         let l:command = ale#command#CdString(a:cwd) . l:command
+    1              0.000002     endif
+                            
+                                " First replace all uses of %%, used for literal percent characters,
+                                " with an ugly string.
+    1              0.000010     let l:command = substitute(l:command, '%%', '<<PERCENTS>>', 'g')
+                            
+                                " Replace %e with the escaped executable, if available.
+    1              0.000006     if !empty(a:executable) && l:command =~# '%e'
+                                    let l:command = substitute(l:command, '%e', '\=ale#Escape(a:executable)', 'g')
+    1              0.000001     endif
+                            
+                                " Replace all %s occurrences in the string with the name of the current
+                                " file.
+    1              0.000003     if l:command =~# '%s'
+    1              0.000114         let l:filename = fnamemodify(bufname(a:buffer), ':p')
+    1   0.000120   0.000047         let l:command = substitute(   l:command,   s:path_format_regex,   '\=s:FormatFilename(l:filename, a:mappings, submatch(1))',   'g')
+    1              0.000000     endif
+                            
+    1              0.000006     if a:input isnot v:false && l:command =~# '%t'
+                                    " Create a temporary filename, <temp_dir>/<original_basename>
+                                    " The file itself will not be created by this function.
+                                    let l:temporary_file = s:TemporaryFilename(a:buffer)
+                                    let l:command = substitute(   l:command,   '\v\%t(%(:h|:t|:r|:e)*)',   '\=s:FormatFilename(l:temporary_file, a:mappings, submatch(1))',   'g')
+    1              0.000000     endif
+                            
+                                " Finish formatting so %% becomes %.
+    1              0.000007     let l:command = substitute(l:command, '<<PERCENTS>>', '%', 'g')
+                            
+    1              0.000003     if a:pipe_file_if_needed && empty(l:temporary_file)
+                                    " If we are to send the Vim buffer to a command, we'll do it
+                                    " in the shell. We'll write out the file to a temporary file,
+                                    " and then read it back in, in the shell.
+    1   0.000053   0.000008         let l:temporary_file = s:TemporaryFilename(a:buffer)
+    1   0.000021   0.000007         let l:command = l:command . ' < ' . ale#Escape(l:temporary_file)
+    1              0.000001     endif
+                            
+    1   0.003211   0.000352     let l:file_created = ale#command#CreateTempFile(   a:buffer,   l:temporary_file,   a:input,)
+                            
+    1              0.000003     return [l:temporary_file, l:command, l:file_created]
+
+FUNCTION  ale#job#ParseVim8ProcessID()
+    Defined: ~/.vim/plugged/ale/autoload/ale/job.vim:140
+Called 44 times
+Total time:   0.000280
+ Self time:   0.000280
+
+count  total (s)   self (s)
+   44              0.000261     return matchstr(a:job_string, '\d\+') + 0
+
+FUNCTION  ale#command#Run()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:333
+Called 1 time
+Total time:   0.004916
+ Self time:   0.000284
+
+count  total (s)   self (s)
+    1              0.000004     let l:options = get(a:000, 0, {})
+                            
+    1              0.000002     if len(a:000) > 1
+                                    throw 'Too many arguments!'
+    1              0.000001     endif
+                            
+    1              0.000003     let l:output_stream = get(l:options, 'output_stream', 'stdout')
+    1              0.000001     let l:line_list = []
+    1              0.000003     let l:cwd = get(l:options, 'cwd', v:null)
+                            
+    1              0.000002     if l:cwd is v:null
+                                    " Default the working directory to whatever it was for the last
+                                    " command run in the chain.
+                                    let l:cwd = get(get(s:buffer_data, a:buffer, {}), 'cwd', v:null)
+    1              0.000001     endif
+                            
+    1   0.003741   0.000024     let [l:temporary_file, l:command, l:file_created] = ale#command#FormatCommand(   a:buffer,   get(l:options, 'executable', ''),   a:command,   get(l:options, 'read_buffer', 0),   get(l:options, 'input', v:null),   l:cwd,   get(l:options, 'filename_mappings', []),)
+    1   0.000078   0.000012     let l:command = ale#job#PrepareCommand(a:buffer, l:command)
+    1              0.000016     let l:job_options = {   'exit_cb': {job_id, exit_code -> s:ExitCallback(       a:buffer,       l:line_list,       a:Callback,       {           'job_id': job_id,           'exit_code': exit_code,           'temporary_file': l:temporary_file,           'log_output': get(l:options, 'log_output', 1),           'result': l:result,       }   )},   'mode': 'nl',}
+                            
+    1              0.000002     if l:output_stream is# 'stdout'
+    1              0.000006         let l:job_options.out_cb = function('s:GatherOutput', [l:line_list])
+                                elseif l:output_stream is# 'stderr'
+                                    let l:job_options.err_cb = function('s:GatherOutput', [l:line_list])
+                                elseif l:output_stream is# 'both'
+                                    let l:job_options.out_cb = function('s:GatherOutput', [l:line_list])
+                                    let l:job_options.err_cb = function('s:GatherOutput', [l:line_list])
+    1              0.000001     endif
+                            
+    1              0.000001     let l:status = 'failed'
+                            
+    1              0.000002     if get(g:, 'ale_run_synchronously') == 1
+                                    if get(g:, 'ale_emulate_job_failure') == 1
+                                        let l:job_id = 0
+                                    else
+                                        " Generate a fake job ID for tests.
+                                        let s:fake_job_id = get(s:, 'fake_job_id', 0) + 1
+                                        let l:job_id = s:fake_job_id
+                                    endif
+    1              0.000002     elseif has('win32')
+                                    let l:job_id = ale#job#StartWithCmd(l:command, l:job_options)
+    1              0.000001     else
+    1   0.000842   0.000049         let l:job_id = ale#job#Start(l:command, l:job_options)
+    1              0.000001     endif
+                            
+    1              0.000001     if l:job_id
+    1              0.000005         let l:status = 'started'
+    1              0.000005         let l:job_type = getbufvar(a:buffer, 'ale_job_type', 'all')
+                            
+    1   0.000025   0.000010         call ale#command#InitData(a:buffer)
+    1              0.000008         let s:buffer_data[a:buffer].jobs[l:job_id] = l:job_type
+    1              0.000000     endif
+                            
+    1              0.000002     if g:ale_history_enabled
+    1   0.000055   0.000014         call ale#history#Add(a:buffer, l:status, l:job_id, l:command)
+    1              0.000001     endif
+                            
+    1              0.000001     if !l:job_id
+                                    return 0
+    1              0.000001     endif
+                            
+                                " We'll return this Dictionary. A `result_callback` can be assigned to it
+                                " later for capturing the result of a:Callback.
+                                "
+                                " The `_deferred_job_id` is used for both checking the type of object, and
+                                " for checking the job ID and status.
+                                "
+                                " The cwd is kept and used as the default value for the next command in
+                                " the chain.
+                                "
+                                " The original command here is used in tests.
+    1              0.000007     let l:result = {   '_deferred_job_id': l:job_id,   'executable': get(l:options, 'executable', ''),   'cwd': l:cwd,   'command': a:command,}
+                            
+    1              0.000003     if get(g:, 'ale_run_synchronously') == 1 && l:job_id
+                                    if !exists('g:ale_run_synchronously_callbacks')
+                                        let g:ale_run_synchronously_callbacks = []
+                                    endif
+                            
+                                    if get(g:, 'ale_run_synchronously_emulate_commands', 0)
+                                        call add(   g:ale_run_synchronously_callbacks,   {exit_code, output -> [       extend(l:line_list, output),       l:job_options.exit_cb(l:job_id, exit_code),   ]})
+                                    else
+                                        " Run a command synchronously if this test option is set.
+                                        call extend(l:line_list, systemlist(   type(l:command) is v:t_list       ? join(l:command[0:1]) . ' ' . ale#Escape(l:command[2])       : l:command))
+                            
+                                        " Don't capture output when the callbacks aren't set.
+                                        if !has_key(l:job_options, 'out_cb')&& !has_key(l:job_options, 'err_cb')
+                                            let l:line_list = []
+                                        endif
+                            
+                                        call add(   g:ale_run_synchronously_callbacks,   {-> l:job_options.exit_cb(l:job_id, v:shell_error)})
+                                    endif
+    1              0.000001     endif
+                            
+    1              0.000005     return l:result
+
+FUNCTION  ale_linters#python#flake8#GetExecutable()
+    Defined: ~/.vim/plugged/ale/ale_linters/python/flake8.vim:14
+Called 3 times
+Total time:   0.005822
+ Self time:   0.000092
+
+count  total (s)   self (s)
+    3   0.000140   0.000039     if (ale#Var(a:buffer, 'python_auto_pipenv') || ale#Var(a:buffer, 'python_flake8_auto_pipenv')) && ale#python#PipenvPresent(a:buffer)
+                                    return 'pipenv'
+    3              0.000001     endif
+                            
+    3   0.000078   0.000018     if !s:UsingModule(a:buffer)
+    3   0.005594   0.000025         return ale#python#FindExecutable(a:buffer, 'python_flake8', ['flake8'])
+                                endif
+                            
+                                return ale#Var(a:buffer, 'python_flake8_executable')
+
+FUNCTION  <SNR>112_CloseWindowIfNeeded()
+    Defined: ~/.vim/plugged/ale/autoload/ale/list.vim:207
+Called 1 time
+Total time:   0.000038
+ Self time:   0.000010
+
+count  total (s)   self (s)
+    1   0.000037   0.000009     if ale#Var(a:buffer, 'keep_list_window_open') || !s:ShouldOpen(a:buffer)
+    1              0.000001         return
+                                endif
+                            
+                                let l:did_close_any_list = 0
+                            
+                                try
+                                    " Only close windows if the quickfix list or loclist is completely empty,
+                                    " including errors set through other means.
+                                    if g:ale_set_quickfix
+                                        if empty(getqflist())
+                                            cclose
+                                            let l:did_close_any_list = 1
+                                        endif
+                                    else
+                                        let l:win_ids = s:WinFindBuf(a:buffer)
+                            
+                                        for l:win_id in l:win_ids
+                                            if g:ale_set_loclist && empty(getloclist(l:win_id))
+                                                lclose
+                                                let l:did_close_any_list = 1
+                                            endif
+                                        endfor
+                                    endif
+                                " Ignore 'Cannot close last window' errors.
+                                catch /E444/
+                                endtry
+                            
+                                if l:did_close_any_list
+                                    call s:RestoreViewIfNeeded(a:buffer)
+                                endif
+
+FUNCTION  ale#command#IsDeferred()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:471
+Called 4 times
+Total time:   0.000018
+ Self time:   0.000018
+
+count  total (s)   self (s)
+    4              0.000016     return type(a:value) is v:t_dict && has_key(a:value, '_deferred_job_id')
+
+FUNCTION  186()
+    Defined: ~/.vim/plugged/nerdtree/lib/nerdtree/creator.vim:37
+Called 2 times
+Total time:   0.000006
+ Self time:   0.000006
+
+count  total (s)   self (s)
+    2              0.000005     return 'NERD_tree_'
+
+FUNCTION  ale_linters#python#flake8#GetCwd()
+    Defined: ~/.vim/plugged/ale/ale_linters/python/flake8.vim:41
+Called 1 time
+Total time:   0.000617
+ Self time:   0.000028
+
+count  total (s)   self (s)
+    1   0.000016   0.000005     let l:change_directory = ale#Var(a:buffer, 'python_flake8_change_directory')
+    1              0.000001     let l:cwd = ''
+                            
+    1              0.000002     if l:change_directory is# 'project'
+    1   0.000585   0.000007         let l:project_root = ale#python#FindProjectRootIni(a:buffer)
+                            
+    1              0.000002         if !empty(l:project_root)
+                                        let l:cwd = l:project_root
+    1              0.000000         endif
+    1              0.000001     endif
+                            
+    1              0.000003     if (l:change_directory is# 'project' && empty(l:cwd))|| l:change_directory is# 1|| l:change_directory is# 'file'
+    1              0.000001         let l:cwd = '%s:h'
+    1              0.000000     endif
+                            
+    1              0.000001     return l:cwd
+
+FUNCTION  ale#Queue()
+    Defined: ~/.vim/plugged/ale/autoload/ale.vim:123
+Called 1 time
+Total time:   0.013863
+ Self time:   0.000062
+
+count  total (s)   self (s)
+    1              0.000001     if a:0 > 2
+                                    throw 'too many arguments!'
+    1              0.000000     endif
+                            
+    1              0.000003     let l:buffer = get(a:000, 1, v:null)
+                            
+    1              0.000002     if l:buffer is v:null
+    1              0.000003         let l:buffer = bufnr('')
+    1              0.000000     endif
+                            
+    1              0.000002     if type(l:buffer) isnot v:t_number
+                                    throw 'buffer_number must be a Number'
+    1              0.000000     endif
+                            
+    1   0.000124   0.000007     if ale#ShouldDoNothing(l:buffer)
+                                    return
+    1              0.000001     endif
+                            
+                                " Default linting_flag to ''
+    1              0.000004     let l:should_lint_file = get(a:000, 0) is# 'lint_file'
+                            
+    1              0.000002     if s:lint_timer != -1
+                                    call timer_stop(s:lint_timer)
+                                    let s:lint_timer = -1
+    1              0.000001     endif
+                            
+    1              0.000001     if a:delay > 0
+                                    let s:lint_timer = timer_start(   a:delay,   function('s:Lint', [l:buffer, l:should_lint_file]))
+    1              0.000000     else
+    1   0.013700   0.000016         call s:Lint(l:buffer, l:should_lint_file, 0)
+    1              0.000000     endif
+
+FUNCTION  <SNR>111_GroupCmd()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:164
+Called 3 times
+Total time:   0.000007
+ Self time:   0.000007
+
+count  total (s)   self (s)
+    3              0.000003     if s:supports_sign_groups
+    3              0.000003         return ' group=ale '
+                                else
+                                    return ' '
+                                endif
+
+FUNCTION  ale#job#PrepareCommand()
+    Defined: ~/.vim/plugged/ale/autoload/ale/job.vim:175
+Called 1 time
+Total time:   0.000066
+ Self time:   0.000051
+
+count  total (s)   self (s)
+    1   0.000020   0.000005     let l:wrapper = ale#Var(a:buffer, 'command_wrapper')
+                            
+                                " The command will be executed in a subshell. This fixes a number of
+                                " issues, including reading the PATH variables correctly, %PATHEXT%
+                                " expansion on Windows, etc.
+                                "
+                                " NeoVim handles this issue automatically if the command is a String,
+                                " but we'll do this explicitly, so we use the same exact command for both
+                                " versions.
+    1              0.000005     let l:command = !empty(l:wrapper) ? s:PrepareWrappedCommand(l:wrapper, a:command) : a:command
+                            
+                                " If a custom shell is specified, use that.
+    1              0.000002     if exists('g:ale_shell')
+                                    let l:shell_arguments = get(g:, 'ale_shell_arguments', &shellcmdflag)
+                            
+                                    return split(g:ale_shell) + split(l:shell_arguments) + [l:command]
+    1              0.000001     endif
+                            
+    1              0.000003     if has('win32')
+                                    return 'cmd /s/c "' . l:command . '"'
+    1              0.000001     endif
+                            
+    1              0.000006     if &shell =~? 'fish$\|pwsh$'
+                                    return ['/bin/sh', '-c', l:command]
+    1              0.000000     endif
+                            
+    1              0.000012     return split(&shell) + split(&shellcmdflag) + [l:command]
+
+FUNCTION  ale#Escape()
+    Defined: ~/.vim/plugged/ale/autoload/ale.vim:219
+Called 5 times
+Total time:   0.000078
+ Self time:   0.000078
+
+count  total (s)   self (s)
+    5              0.000019     if fnamemodify(&shell, ':t') is? 'cmd.exe'
+                                    " If the string contains spaces, it will be surrounded by quotes.
+                                    " Otherwise, special characters will be escaped with carets (^).
+                                    return substitute(   a:str =~# ' '       ?  '"' .  substitute(a:str, '"', '""', 'g') . '"'       : substitute(a:str, '\v([&|<>^])', '^\1', 'g'),   '%',   '%%',   'g',)
+    5              0.000003     endif
+                            
+    5              0.000017     return shellescape (a:str)
+
+FUNCTION  <SNR>102_GetLintFileValues()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:607
+Called 1 time
+Total time:   0.012910
+ Self time:   0.000070
+
+count  total (s)   self (s)
+    1              0.000002     let l:deferred_list = []
+    1              0.000002     let l:new_slots = []
+                            
+    2              0.000004     for [l:lint_file, l:linter] in a:slots
+    1   0.000012   0.000007         while ale#command#IsDeferred(l:lint_file) && has_key(l:lint_file, 'value')
+                                        " If we've already computed the return value, use it.
+                                        let l:lint_file = l:lint_file.value
+    1              0.000001         endwhile
+                            
+    1   0.000008   0.000004         if ale#command#IsDeferred(l:lint_file)
+                                        " If we are going to return the result later, wait for it.
+                                        call add(l:deferred_list, l:lint_file)
+    1              0.000001         else
+                                        " If we have the value now, coerce it to 0 or 1.
+    1              0.000002             let l:lint_file = l:lint_file is 1
+    1              0.000001         endif
+                            
+    1              0.000003         call add(l:new_slots, [l:lint_file, l:linter])
+    2              0.000003     endfor
+                            
+    1              0.000002     if !empty(l:deferred_list)
+                                    for l:deferred in l:deferred_list
+                                        let l:deferred.result_callback =   {-> s:GetLintFileValues(l:new_slots, a:Callback)}
+                                    endfor
+    1              0.000001     else
+    1   0.012836   0.000005         call a:Callback(l:new_slots)
+    1              0.000002     endif
+
+FUNCTION  GetPythonIndent()
+    Defined: ~/.vim/indent/python.vim:20
+Called 1000 times
+Total time:   0.022573
+ Self time:   0.022573
+
+count  total (s)   self (s)
+ 1000              0.002463     let l:prevline = getline(a:lnum - 1)
+                            
+ 1000              0.004081     if l:prevline[-1:] =~ b:opening_delims
+                                    if getline(a:lnum) =~ '^\s*' . b:closing_delims . '$'
+                                        return indent(a:lnum - 1)
+                                    else
+                                        return indent(a:lnum - 1) + shiftwidth()
+                                    endif
+ 1000              0.000457     endif
+                            
+ 1000              0.002168     if empty(l:prevline) || l:prevline =~ b:spaces_only
+  999              0.002178         let l:pprevline = getline(a:lnum - 2)
+  999              0.001678         if empty(l:pprevline)
+  998              0.001634             return indent(a:lnum - 3)
+    1              0.000001         else 
+    1              0.000002             return indent(a:lnum - 2)
+                                    endif
+    1              0.000001     endif
+                            
+    1              0.000007     # default
+    1              0.000003     return indent(a:lnum - 1)
+                            
+
+FUNCTION  <SNR>108_VimCloseCallback()
+    Defined: ~/.vim/plugged/ale/autoload/ale/job.vim:88
+Called 1 time
+Total time:   0.023404
+ Self time:   0.000086
+
+count  total (s)   self (s)
+    1              0.000015     let l:job = ch_getjob(a:channel)
+    1   0.000032   0.000017     let l:job_id = ale#job#ParseVim8ProcessID(string(l:job))
+    1              0.000007     let l:info = get(s:job_map, l:job_id, {})
+                            
+    1              0.000003     if empty(l:info)
+                                    return
+    1              0.000001     endif
+                            
+                                " job_status() can trigger the exit handler.
+                                " The channel can close before the job has exited.
+    1   0.023322   0.000019     if job_status(l:job) is# 'dead'
+    1              0.000001         try
+    1              0.000004             if !empty(l:info) && has_key(l:info, 'exit_cb')
+                                            " We have to remove the callback, so we don't call it twice.
+                                            call ale#util#GetFunction(remove(l:info, 'exit_cb'))(l:job_id, get(l:info, 'exit_code', 1))
+    1              0.000000             endif
+    1              0.000000         finally
+                                        " Automatically forget about the job after it's done.
+    1              0.000002             if has_key(s:job_map, l:job_id)
+                                            call remove(s:job_map, l:job_id)
+    1              0.000000             endif
+    1              0.000001         endtry
+    1              0.000001     endif
+
+FUNCTION  <SNR>112_SetListsImpl()
+    Defined: ~/.vim/plugged/ale/autoload/ale/list.vim:84
+Called 1 time
+Total time:   0.003197
+ Self time:   0.000271
+
+count  total (s)   self (s)
+    1              0.000038     let l:title = expand('#' . a:buffer . ':p')
+                            
+    1              0.000002     if g:ale_set_quickfix
+                                    let l:quickfix_list = ale#list#GetCombinedList()
+                            
+                                    if has('nvim')
+                                        call setqflist(s:FixList(a:buffer, l:quickfix_list), ' ', l:title)
+                                    else
+                                        call setqflist(s:FixList(a:buffer, l:quickfix_list))
+                                        call setqflist([], 'r', {'title': l:title})
+                                    endif
+    1              0.000001     elseif g:ale_set_loclist
+                                    " If windows support is off, win_findbuf() may not exist.
+                                    " We'll set result in the current window, which might not be correct,
+                                    " but it's better than nothing.
+    1   0.000017   0.000010         let l:ids = s:WinFindBuf(a:buffer)
+                            
+    2              0.000004         for l:id in l:ids
+    1              0.000005             if has('nvim')
+                                            call setloclist(l:id, s:FixList(a:buffer, a:loclist), ' ', l:title)
+    1              0.000000             else
+    1   0.002946   0.000099                 call setloclist(l:id, s:FixList(a:buffer, a:loclist))
+    1              0.000006                 call setloclist(l:id, [], 'r', {'title': l:title})
+    1              0.000000             endif
+    2              0.000001         endfor
+    1              0.000001     endif
+                            
+                                " Save the current view before opening/closing any window
+    1              0.000010     call setbufvar(a:buffer, 'ale_winview', winsaveview())
+                            
+                                " Open a window to show the problems if we need to.
+                                "
+                                " We'll check if the current buffer's List is not empty here, so the
+                                " window will only be opened if the current buffer has problems.
+    1   0.000031   0.000008     if s:ShouldOpen(a:buffer) && !empty(a:loclist)
+                                    let l:winnr = winnr()
+                                    let l:mode = mode()
+                            
+                                    " open windows vertically instead of default horizontally
+                                    let l:open_type = ''
+                            
+                                    if ale#Var(a:buffer, 'list_vertical') == 1
+                                        let l:open_type = 'vert rightbelow '
+                                    endif
+                            
+                                    if g:ale_set_quickfix
+                                        if !ale#list#IsQuickfixOpen()
+                                            silent! execute l:open_type . 'copen ' . str2nr(ale#Var(a:buffer, 'list_window_size'))
+                                        endif
+                                    elseif g:ale_set_loclist
+                                        silent! execute l:open_type . 'lopen ' . str2nr(ale#Var(a:buffer, 'list_window_size'))
+                                    endif
+                            
+                                    " If focus changed, restore it (jump to the last window).
+                                    if l:winnr isnot# winnr()
+                                        wincmd p
+                                    endif
+                            
+                                    " Return to original mode when applicable
+                                    if mode() != l:mode
+                                        if l:mode is? 'v' || l:mode is# "\<c-v>"
+                                            " Reset our last visual selection
+                                            normal! gv
+                                        elseif l:mode is? 's' || l:mode is# "\<c-s>"
+                                            " Reset our last character selection
+                                            normal! "\<c-g>"
+                                        endif
+                                    endif
+                            
+                                    call s:RestoreViewIfNeeded(a:buffer)
+    1              0.000001     endif
+                            
+                                " If ALE isn't currently checking for more problems, close the window if
+                                " needed now. This check happens inside of this timer function, so
+                                " the window can be closed reliably.
+    1   0.000016   0.000005     if !ale#engine#IsCheckingBuffer(a:buffer)
+    1   0.000045   0.000007         call s:CloseWindowIfNeeded(a:buffer)
+    1              0.000000     endif
+
+FUNCTION  ale#linter#GetCommand()
+    Defined: ~/.vim/plugged/ale/autoload/ale/linter.vim:438
+Called 1 time
+Total time:   0.004069
+ Self time:   0.000014
+
+count  total (s)   self (s)
+    1              0.000003     let l:Command = a:linter.command
+                            
+    1   0.004066   0.000011     return type(l:Command) is v:t_func ? l:Command(a:buffer) : l:Command
+
+FUNCTION  <SNR>108_VimOutputCallback()
+    Defined: ~/.vim/plugged/ale/autoload/ale/job.vim:68
+Called 41 times
+Total time:   0.001519
+ Self time:   0.000947
+
+count  total (s)   self (s)
+   41              0.000097     let l:job = ch_getjob(a:channel)
+   41   0.000481   0.000261     let l:job_id = ale#job#ParseVim8ProcessID(string(l:job))
+                            
+                                " Only call the callbacks for jobs which are valid.
+   41              0.000115     if l:job_id > 0 && has_key(s:job_map, l:job_id)
+   41   0.000741   0.000389         call ale#util#GetFunction(s:job_map[l:job_id].out_cb)(l:job_id, a:data)
+   41              0.000019     endif
+
+FUNCTION  ale#python#HandleTraceback()
+    Defined: ~/.vim/plugged/ale/autoload/ale/python.vim:119
+Called 1 time
+Total time:   0.000147
+ Self time:   0.000147
+
+count  total (s)   self (s)
+    1              0.000008     let l:nlines = len(a:lines)
+    1              0.000006     let l:limit = a:limit > l:nlines ? l:nlines : a:limit
+    1              0.000002     let l:start = 0
+                            
+   11              0.000028     while l:start < l:limit
+   10              0.000036         if a:lines[l:start] is# 'Traceback (most recent call last):'
+                                        break
+   10              0.000005         endif
+                            
+   10              0.000017         let l:start += 1
+   11              0.000022     endwhile
+                            
+    1              0.000002     if l:start >= l:limit
+    1              0.000001         return []
+                                endif
+                            
+                                let l:end = l:start + 1
+                            
+                                " Traceback entries are always prefixed with 2 spaces.
+                                " SyntaxError marker (if present) is prefixed with at least 4 spaces.
+                                " Final exc line starts with exception class name (never a space).
+                                while l:end < l:nlines && a:lines[l:end][0] is# ' '
+                                    let l:end += 1
+                                endwhile
+                            
+                                let l:exc_line = l:end < l:nlines   ? a:lines[l:end]   : 'An exception was thrown.'
+                            
+                                return [{   'lnum': 1,   'text': l:exc_line . ' (See :ALEDetail)',   'detail': join(a:lines[(l:start):(l:end)], "\n"),}]
+
+FUNCTION  ale#sign#ParsePattern()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:182
+Called 1 time
+Total time:   0.000012
+ Self time:   0.000012
+
+count  total (s)   self (s)
+    1              0.000001     if s:supports_sign_groups
+                                    " Matches output like :
+                                    " line=4  id=1  group=ale  name=ALEErrorSign
+                                    " строка=1  id=1000001  группа=ale  имя=ALEErrorSign
+                                    " 行=1  識別子=1000001  グループ=ale  名前=ALEWarningSign
+                                    " línea=12 id=1000001 grupo=ale  nombre=ALEWarningSign
+                                    " riga=1 id=1000001  gruppo=ale   nome=ALEWarningSign
+                                    " Zeile=235  id=1000001 Gruppe=ale  Name=ALEErrorSign
+    1              0.000002         let l:pattern = '\v^.*\=(\d+).*\=(\d+).*\=ale>.*\=(ALE[a-zA-Z]+Sign)'
+                                else
+                                    " Matches output like :
+                                    " line=4  id=1  name=ALEErrorSign
+                                    " строка=1  id=1000001  имя=ALEErrorSign
+                                    " 行=1  識別子=1000001  名前=ALEWarningSign
+                                    " línea=12 id=1000001 nombre=ALEWarningSign
+                                    " riga=1 id=1000001  nome=ALEWarningSign
+                                    " Zeile=235  id=1000001  Name=ALEErrorSign
+                                    let l:pattern = '\v^.*\=(\d+).*\=(\d+).*\=(ALE[a-zA-Z]+Sign)'
+    1              0.000000     endif
+                            
+    1              0.000001     return l:pattern
+
+FUNCTION  ale#util#BinarySearch()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:231
+Called 3 times
+Total time:   0.000696
+ Self time:   0.000696
+
+count  total (s)   self (s)
+    3              0.000003     let l:min = 0
+    3              0.000009     let l:max = len(a:loclist) - 1
+                            
+   21              0.000019     while 1
+   21              0.000034         if l:max < l:min
+    3              0.000003             return -1
+   18              0.000009         endif
+                            
+   18              0.000031         let l:mid = (l:min + l:max) / 2
+   18              0.000036         let l:item = a:loclist[l:mid]
+                            
+                                    " Binary search for equal buffers, equal lines, then near columns.
+   18              0.000020         if l:item.bufnr < a:buffer
+                                        let l:min = l:mid + 1
+   18              0.000017         elseif l:item.bufnr > a:buffer
+                                        let l:max = l:mid - 1
+   18              0.000020         elseif l:item.lnum < a:line
+   18              0.000018             let l:min = l:mid + 1
+                                    elseif l:item.lnum > a:line
+                                        let l:max = l:mid - 1
+                                    else
+                                        " This part is a small sequential search.
+                                        let l:index = l:mid
+                            
+                                        " Search backwards to find the first problem on the line.
+                                        while l:index > 0&& a:loclist[l:index - 1].bufnr == a:buffer&& a:loclist[l:index - 1].lnum == a:line
+                                            let l:index -= 1
+                                        endwhile
+                            
+                                        " Find the last problem on or before this column.
+                                        while l:index < l:max&& a:loclist[l:index + 1].bufnr == a:buffer&& a:loclist[l:index + 1].lnum == a:line&& a:loclist[l:index + 1].col <= a:column
+                                            let l:index += 1
+                                        endwhile
+                            
+                                        " Scan forwards to find the last item on the column for the item
+                                        " we found, which will have the most serious problem.
+                                        let l:item_column = a:loclist[l:index].col
+                            
+                                        while l:index < l:max&& a:loclist[l:index + 1].bufnr == a:buffer&& a:loclist[l:index + 1].lnum == a:line&& a:loclist[l:index + 1].col == l:item_column
+                                            let l:index += 1
+                                        endwhile
+                            
+                                        return l:index
+   18              0.000011         endif
+   18              0.000007     endwhile
+
+FUNCTION  ale#util#GetItemPriority()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:128
+Called 43 times
+Total time:   0.000625
+ Self time:   0.000625
+
+count  total (s)   self (s)
+   43              0.000066     if a:item.type is# 'I'
+                                    return g:ale#util#info_priority
+   43              0.000022     endif
+                            
+   43              0.000061     if a:item.type is# 'W'
+                                    if get(a:item, 'sub_type', '') is# 'style'
+                                        return g:ale#util#style_warning_priority
+                                    endif
+                            
+                                    return g:ale#util#warning_priority
+   43              0.000019     endif
+                            
+   43              0.000111     if get(a:item, 'sub_type', '') is# 'style'
+   43              0.000043         return g:ale#util#style_error_priority
+                                endif
+                            
+                                return g:ale#util#error_priority
+
+FUNCTION  ale#engine#RunLinters()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:679
+Called 1 time
+Total time:   0.012997
+ Self time:   0.000045
+
+count  total (s)   self (s)
+                                " Initialise the buffer information if needed.
+    1   0.000018   0.000006     let l:new_buffer = ale#engine#InitBufferInfo(a:buffer)
+                            
+    1   0.012977   0.000037     call s:GetLintFileValues(   s:GetLintFileSlots(a:buffer, a:linters),   {       slots -> s:RunLinters(           a:buffer,           a:linters,           slots,           a:should_lint_file,           l:new_buffer,       )   })
+
+FUNCTION  <SNR>85_Lint()
+    Defined: ~/.vim/plugged/ale/autoload/ale.vim:99
+Called 1 time
+Total time:   0.013684
+ Self time:   0.000140
+
+count  total (s)   self (s)
+                                " Use the filetype from the buffer
+    1              0.000004     let l:filetype = getbufvar(a:buffer, '&filetype')
+    1   0.000521   0.000016     let l:linters = ale#linter#Get(l:filetype)
+    1   0.000049   0.000009     let l:linters = ale#linter#RemoveIgnored(a:buffer, l:filetype, l:linters)
+                            
+                                " Tell other sources that they can start checking the buffer now.
+    1              0.000005     let g:ale_want_results_buffer = a:buffer
+    1   0.000074   0.000072     silent doautocmd <nomodeline> User ALEWantResults
+    1              0.000003     unlet! g:ale_want_results_buffer
+                            
+                                " Don't set up buffer data and so on if there are no linters to run.
+    1              0.000006     if !has_key(g:ale_buffer_info, a:buffer) && empty(l:linters)
+                                    return
+    1              0.000001     endif
+                            
+                                " Clear lint_file linters, or only run them if the file exists.
+    1              0.000006     let l:lint_file = empty(l:linters)   || (a:should_lint_file && filereadable(expand('#' . a:buffer . ':p')))
+                            
+    1   0.013010   0.000013     call ale#engine#RunLinters(a:buffer, l:linters, l:lint_file)
+
+FUNCTION  <SNR>111_GroupLoclistItems()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:238
+Called 1 time
+Total time:   0.000447
+ Self time:   0.000447
+
+count  total (s)   self (s)
+    1              0.000001     let l:grouped_items = []
+    1              0.000002     let l:last_lnum = -1
+                            
+   42              0.000031     for l:obj in a:loclist
+   41              0.000042         if l:obj.bufnr != a:buffer
+                                        continue
+   41              0.000018         endif
+                            
+                                    " Create a new sub-List when we hit a new line.
+   41              0.000047         if l:obj.lnum != l:last_lnum
+   38              0.000060             call add(l:grouped_items, [])
+   41              0.000017         endif
+                            
+   41              0.000085         call add(l:grouped_items[-1], l:obj)
+   41              0.000044         let l:last_lnum = l:obj.lnum
+   42              0.000019     endfor
+                            
+    1              0.000001     return l:grouped_items
+
+FUNCTION  <SNR>102_RemoveProblemsForDisabledLinters()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:477
+Called 1 time
+Total time:   0.000280
+ Self time:   0.000280
+
+count  total (s)   self (s)
+                                " Figure out which linters are still enabled, and remove
+                                " problems for linters which are no longer enabled.
+                                " Problems from other sources will be kept.
+    1              0.000002     let l:name_map = {}
+                            
+    2              0.000003     for l:linter in a:linters
+    1              0.000003         let l:name_map[l:linter.name] = 1
+    2              0.000002     endfor
+                            
+    1              0.000266     call filter(   get(g:ale_buffer_info[a:buffer], 'loclist', []),   'get(v:val, ''from_other_source'') || get(l:name_map, get(v:val, ''linter_name''))',)
+
+FUNCTION  <SNR>103_ExitCallback()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:285
+Called 1 time
+Total time:   0.023204
+ Self time:   0.000164
+
+count  total (s)   self (s)
+    1              0.000004     if !has_key(s:buffer_data, a:buffer)
+                                    return
+    1              0.000000     endif
+                            
+    1              0.000007     let l:jobs = s:buffer_data[a:buffer].jobs
+                            
+    1              0.000003     if !has_key(l:jobs, a:data.job_id)
+                                    return
+    1              0.000000     endif
+                            
+    1              0.000003     let l:job_type = remove(l:jobs, a:data.job_id)
+                            
+    1              0.000002     if g:ale_history_enabled
+    1   0.000056   0.000009         call ale#history#SetExitCode(a:buffer, a:data.job_id, a:data.exit_code)
+                            
+                                    " Log the output of the command for ALEInfo if we should.
+    1              0.000003         if g:ale_history_log_output && a:data.log_output is 1
+    1   0.000054   0.000023             call ale#history#RememberOutput(   a:buffer,   a:data.job_id,   a:line_list[:])
+    1              0.000001         endif
+    1              0.000001     endif
+                            
+                                " If the callback starts any new jobs, use the same job type for them.
+    1              0.000005     call setbufvar(a:buffer, 'ale_job_type', l:job_type)
+    1   0.023002   0.000066     let l:value = a:Callback(a:buffer, a:line_list, {   'exit_code': a:data.exit_code,   'temporary_file': a:data.temporary_file,})
+                            
+    1              0.000003     let l:result = a:data.result
+    1              0.000002     let l:result.value = l:value
+                            
+                                " Set the default cwd for this buffer in this call stack.
+    1   0.000028   0.000008     call ale#command#SetCwd(a:buffer, l:result.cwd)
+                            
+    1              0.000001     try
+    1              0.000003         if get(l:result, 'result_callback', v:null) isnot v:null
+                                        call call(l:result.result_callback, [l:value])
+    1              0.000001         endif
+    1              0.000001     finally
+    1   0.000010   0.000004         call ale#command#ResetCwd(a:buffer)
+    1              0.000000     endtry
+
+FUNCTION  <SNR>111_PriorityCmd()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:156
+Called 2 times
+Total time:   0.000008
+ Self time:   0.000008
+
+count  total (s)   self (s)
+    2              0.000002     if s:supports_sign_groups
+    2              0.000006         return ' priority=' . g:ale_sign_priority . ' '
+                                else
+                                    return ''
+                                endif
+
+FUNCTION  ale#python#FindExecutable()
+    Defined: ~/.vim/plugged/ale/autoload/ale/python.vim:96
+Called 3 times
+Total time:   0.005569
+ Self time:   0.000104
+
+count  total (s)   self (s)
+    3   0.000045   0.000013     if ale#Var(a:buffer, a:base_var_name . '_use_global')
+                                    return ale#Var(a:buffer, a:base_var_name . '_executable')
+    3              0.000002     endif
+                            
+    3   0.005416   0.000019     let l:virtualenv = ale#python#FindVirtualenv(a:buffer)
+                            
+    3              0.000007     if !empty(l:virtualenv)
+                                    for l:path in a:path_list
+                                        let l:ve_executable = ale#path#Simplify(   join([l:virtualenv, s:bin_dir, l:path], s:sep))
+                            
+                                        if executable(l:ve_executable)
+                                            return l:ve_executable
+                                        endif
+                                    endfor
+    3              0.000003     endif
+                            
+    3   0.000055   0.000019     return ale#Var(a:buffer, a:base_var_name . '_executable')
+
+FUNCTION  ale#util#StartPartialTimer()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:449
+Called 1 time
+Total time:   0.000014
+ Self time:   0.000014
+
+count  total (s)   self (s)
+    1              0.000007     let l:timer_id = timer_start(a:delay, function('s:ApplyPartialTimer'))
+    1              0.000004     let s:partial_timers[l:timer_id] = [a:callback, a:args]
+                            
+    1              0.000001     return l:timer_id
+
+FUNCTION  ale#command#InitData()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:22
+Called 4 times
+Total time:   0.000043
+ Self time:   0.000043
+
+count  total (s)   self (s)
+    4              0.000024     if !has_key(s:buffer_data, a:buffer)
+    1              0.000006         let s:buffer_data[a:buffer] = {   'jobs': {},   'file_list': [],   'directory_list': [],}
+    4              0.000003     endif
+
+FUNCTION  ale#util#LocItemCompare()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:150
+Called 90 times
+Total time:   0.001361
+ Self time:   0.001332
+
+count  total (s)   self (s)
+   90              0.000096     if a:left.bufnr < a:right.bufnr
+                                    return -1
+   90              0.000044     endif
+                            
+   90              0.000091     if a:left.bufnr > a:right.bufnr
+                                    return 1
+   90              0.000037     endif
+                            
+   90              0.000082     if a:left.bufnr == -1
+                                    if a:left.filename < a:right.filename
+                                        return -1
+                                    endif
+                            
+                                    if a:left.filename > a:right.filename
+                                        return 1
+                                    endif
+   90              0.000038     endif
+                            
+   90              0.000099     if a:left.lnum < a:right.lnum
+   66              0.000044         return -1
+   24              0.000010     endif
+                            
+   24              0.000028     if a:left.lnum > a:right.lnum
+   21              0.000013         return 1
+    3              0.000001     endif
+                            
+    3              0.000004     if a:left.col < a:right.col
+    2              0.000001         return -1
+    1              0.000000     endif
+                            
+    1              0.000001     if a:left.col > a:right.col
+                                    return 1
+    1              0.000001     endif
+                            
+                                " When either of the items lacks a problem type, then the two items should
+                                " be considered equal. This is important for loclist jumping.
+    1              0.000004     if !has_key(a:left, 'type') || !has_key(a:right, 'type')
+                                    return 0
+    1              0.000000     endif
+                            
+    1   0.000023   0.000008     let l:left_priority = ale#util#GetItemPriority(a:left)
+    1   0.000018   0.000004     let l:right_priority = ale#util#GetItemPriority(a:right)
+                            
+    1              0.000002     if l:left_priority < l:right_priority
+                                    return -1
+    1              0.000000     endif
+                            
+    1              0.000001     if l:left_priority > l:right_priority
+                                    return 1
+    1              0.000000     endif
+                            
+    1              0.000001     return 0
+
+FUNCTION  <SNR>106_FindHistoryItem()
+    Defined: ~/.vim/plugged/ale/autoload/ale/history.vim:36
+Called 2 times
+Total time:   0.000054
+ Self time:   0.000032
+
+count  total (s)   self (s)
+                                " Search backwards to find a matching job ID. IDs might be recycled,
+                                " so finding the last one should be good enough.
+    2   0.000041   0.000019     for l:obj in reverse(ale#history#Get(a:buffer))
+    2              0.000004         if l:obj.job_id == a:job_id
+    2              0.000002             return l:obj
+                                    endif
+                                endfor
+                            
+                                return {}
+
+FUNCTION  ale#history#SetExitCode()
+    Defined: ~/.vim/plugged/ale/autoload/ale/history.vim:49
+Called 1 time
+Total time:   0.000047
+ Self time:   0.000013
+
+count  total (s)   self (s)
+    1   0.000042   0.000008     let l:obj = s:FindHistoryItem(a:buffer, a:job_id)
+                            
+                                " If we find a match, then set the code and status.
+    1              0.000002     let l:obj.exit_code = a:exit_code
+    1              0.000001     let l:obj.status = 'finished'
+
+FUNCTION  ale#linter#GetAll()
+    Defined: ~/.vim/plugged/ale/autoload/ale/linter.vim:270
+Called 1 time
+Total time:   0.000054
+ Self time:   0.000044
+
+count  total (s)   self (s)
+                                " Don't return linters in the sandbox.
+                                " Otherwise a sandboxed script could modify them.
+    1   0.000014   0.000004     if ale#util#InSandbox()
+                                    return []
+    1              0.000000     endif
+                            
+    1              0.000001     let l:combined_linters = []
+                            
+    2              0.000003     for l:filetype in a:filetypes
+                                    " Load linters from runtimepath if we haven't done that yet.
+    1              0.000003         if !has_key(s:runtime_loaded_map, l:filetype)
+                                        execute 'silent! runtime! ale_linters/' . l:filetype . '/*.vim'
+                            
+                                        let s:runtime_loaded_map[l:filetype] = 1
+    1              0.000000         endif
+                            
+    1              0.000008         call extend(l:combined_linters, get(s:linters, l:filetype, []))
+    2              0.000003     endfor
+                            
+    1              0.000001     return l:combined_linters
+
+FUNCTION  ale#linter#GetCwd()
+    Defined: ~/.vim/plugged/ale/autoload/ale/linter.vim:431
+Called 1 time
+Total time:   0.000630
+ Self time:   0.000013
+
+count  total (s)   self (s)
+    1              0.000004     let l:Cwd = get(a:linter, 'cwd', v:null)
+                            
+    1   0.000626   0.000009     return type(l:Cwd) is v:t_func ? l:Cwd(a:buffer) : l:Cwd
+
+FUNCTION  ale#util#FindItemAtCursor()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:474
+Called 3 times
+Total time:   0.000776
+ Self time:   0.000080
+
+count  total (s)   self (s)
+    3              0.000016     let l:info = get(g:ale_buffer_info, a:buffer, {})
+    3              0.000009     let l:loclist = get(l:info, 'loclist', [])
+    3              0.000008     let l:pos = getpos('.')
+    3   0.000724   0.000028     let l:index = ale#util#BinarySearch(l:loclist, a:buffer, l:pos[1], l:pos[2])
+    3              0.000007     let l:loc = l:index >= 0 ? l:loclist[l:index] : {}
+                            
+    3              0.000005     return [l:info, l:loc]
+
+FUNCTION  ale#linter#ResolveFiletype()
+    Defined: ~/.vim/plugged/ale/autoload/ale/linter.vim:319
+Called 1 time
+Total time:   0.000061
+ Self time:   0.000015
+
+count  total (s)   self (s)
+    1   0.000055   0.000009     let l:filetype = s:GetAliasedFiletype(a:original_filetype)
+                            
+    1              0.000002     if type(l:filetype) isnot v:t_list
+    1              0.000002         return [l:filetype]
+                                endif
+                            
+                                return l:filetype
+
+FUNCTION  ale#semver#GTE()
+    Defined: ~/.vim/plugged/ale/autoload/ale/semver.vim:62
+Called 1 time
+Total time:   0.000013
+ Self time:   0.000013
+
+count  total (s)   self (s)
+    1              0.000002     if empty(a:lhs)
+                                    return 0
+    1              0.000001     endif
+                            
+    1              0.000002     if a:lhs[0] > a:rhs[0]
+                                    return 1
+    1              0.000002     elseif a:lhs[0] == a:rhs[0]
+    1              0.000002         if a:lhs[1] > a:rhs[1]
+    1              0.000001             return 1
+                                    elseif a:lhs[1] == a:rhs[1]
+                                        return get(a:lhs, 2) >= get(a:rhs, 2)
+                                    endif
+                                endif
+                            
+                                return 0
+
+FUNCTION  ale#util#Mode()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:5
+Called 5 times
+Total time:   0.000021
+ Self time:   0.000021
+
+count  total (s)   self (s)
+    5              0.000021     return call('mode', a:000)
+
+FUNCTION  <SNR>111_BuildSignMap()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:284
+Called 1 time
+Total time:   0.003595
+ Self time:   0.001858
+
+count  total (s)   self (s)
+    1   0.000017   0.000005     let l:max_signs = ale#Var(a:buffer, 'max_signs')
+                            
+    1              0.000001     if l:max_signs is 0
+                                    let l:selected_grouped_items = []
+    1              0.000003     elseif type(l:max_signs) is v:t_number && l:max_signs > 0
+                                    let l:selected_grouped_items = a:grouped_items[:l:max_signs - 1]
+    1              0.000001     else
+    1              0.000002         let l:selected_grouped_items = a:grouped_items
+    1              0.000001     endif
+                            
+    1              0.000001     let l:sign_map = {}
+    1              0.000002     let l:sign_offset = g:ale_sign_offset
+                            
+   39              0.000048     for [l:line, l:sign_id, l:name] in a:current_sign_list
+   38              0.000215         let l:sign_info = get(l:sign_map, l:line, {   'current_id_list': [],   'current_name_list': [],   'new_id': 0,   'new_name': '',   'items': [],})
+                            
+                                    " Increment the sign offset for new signs, by the maximum sign ID.
+   38              0.000050         if l:sign_id > l:sign_offset
+   36              0.000036             let l:sign_offset = l:sign_id
+   38              0.000017         endif
+                            
+                                    " Remember the sign names and IDs in separate Lists, so they are easy
+                                    " to work with.
+   38              0.000071         call add(l:sign_info.current_id_list, l:sign_id)
+   38              0.000073         call add(l:sign_info.current_name_list, l:name)
+                            
+   38              0.000075         let l:sign_map[l:line] = l:sign_info
+   39              0.000018     endfor
+                            
+   39              0.000035     for l:group in l:selected_grouped_items
+   38              0.000054         let l:line = l:group[0].lnum
+   38              0.000270         let l:sign_info = get(l:sign_map, l:line, {   'current_id_list': [],   'current_name_list': [],   'new_id': 0,   'new_name': '',   'items': [],})
+                            
+   38   0.001950   0.000225         let l:sign_info.new_name = ale#sign#GetSignName(l:group)
+   38              0.000049         let l:sign_info.items = l:group
+                            
+   38              0.000102         let l:index = index(   l:sign_info.current_name_list,   l:sign_info.new_name)
+                            
+   38              0.000038         if l:index >= 0
+                                        " We have a sign with this name already, so use the same ID.
+   38              0.000089             let l:sign_info.new_id = l:sign_info.current_id_list[l:index]
+                                    else
+                                        " This sign name replaces the previous name, so use a new ID.
+                                        let l:sign_info.new_id = l:sign_offset + 1
+                                        let l:sign_offset += 1
+   38              0.000021         endif
+                            
+   38              0.000067         let l:sign_map[l:line] = l:sign_info
+   39              0.000017     endfor
+                            
+    1              0.000001     return l:sign_map
+
+FUNCTION  <SNR>102_GetLintFileSlots()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:591
+Called 1 time
+Total time:   0.000030
+ Self time:   0.000030
+
+count  total (s)   self (s)
+    1              0.000002     let l:linter_slots = []
+                            
+    2              0.000002     for l:linter in a:linters
+    1              0.000002         let l:LintFile = l:linter.lint_file
+                            
+    1              0.000003         if type(l:LintFile) is v:t_func
+                                        let l:LintFile = l:LintFile(a:buffer)
+    1              0.000001         endif
+                            
+    1              0.000003         call add(l:linter_slots, [l:LintFile, l:linter])
+    2              0.000001     endfor
+                            
+    1              0.000001     return l:linter_slots
+
+FUNCTION  <SNR>112_WinFindBuf()
+    Defined: ~/.vim/plugged/ale/autoload/ale/list.vim:80
+Called 1 time
+Total time:   0.000007
+ Self time:   0.000007
+
+count  total (s)   self (s)
+    1              0.000007     return exists('*win_findbuf') ? win_findbuf(str2nr(a:buffer)) : [0]
+
+FUNCTION  ale#python#FindVirtualenv()
+    Defined: ~/.vim/plugged/ale/autoload/ale/python.vim:69
+Called 3 times
+Total time:   0.005397
+ Self time:   0.002952
+
+count  total (s)   self (s)
+   15   0.000455   0.000164     for l:path in ale#path#Upwards(expand('#' . a:buffer . ':p:h'))
+                                    " Skip empty path components returned in MSYS.
+   12              0.000021         if empty(l:path)
+                                        continue
+   12              0.000005         endif
+                            
+   96   0.000288   0.000147         for l:dirname in ale#Var(a:buffer, 'virtualenv_dir_names')
+   84   0.001777   0.000727             let l:venv_dir = ale#path#Simplify(   join([l:path, l:dirname], s:sep))
+   84   0.001654   0.000691             let l:script_filename = ale#path#Simplify(   join([l:venv_dir, s:bin_dir, 'activate'], s:sep))
+                            
+   84              0.000755             if filereadable(l:script_filename)
+                                            return l:venv_dir
+   84              0.000057             endif
+   96              0.000059         endfor
+   15              0.000011     endfor
+                            
+    3              0.000007     return $VIRTUAL_ENV
+
+FUNCTION  ale#list#SetLists()
+    Defined: ~/.vim/plugged/ale/autoload/ale/list.vim:189
+Called 1 time
+Total time:   0.000038
+ Self time:   0.000024
+
+count  total (s)   self (s)
+    1              0.000006     if get(g:, 'ale_set_lists_synchronously') == 1|| getbufvar(a:buffer, 'ale_save_event_fired', 0)
+                                    " Update lists immediately if running a test synchronously, or if the
+                                    " buffer was saved.
+                                    "
+                                    " The lists need to be updated immediately when saving a buffer so
+                                    " that we can reliably close window automatically, if so configured.
+                                    call s:SetListsImpl(-1, a:buffer, a:loclist)
+    1              0.000001     else
+    1   0.000026   0.000012         call ale#util#StartPartialTimer(   0,   function('s:SetListsImpl'),   [a:buffer, a:loclist],)
+    1              0.000000     endif
+
+FUNCTION  <SNR>102_RunLinters()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:638
+Called 1 time
+Total time:   0.012794
+ Self time:   0.000275
+
+count  total (s)   self (s)
+    1   0.000075   0.000009     call s:StopCurrentJobs(a:buffer, a:should_lint_file, a:slots)
+    1   0.000294   0.000014     call s:RemoveProblemsForDisabledLinters(a:buffer, a:linters)
+                            
+                                " We can only clear the results if we aren't checking the buffer.
+    1   0.000029   0.000013     let l:can_clear_results = !ale#engine#IsCheckingBuffer(a:buffer)
+                            
+    1   0.000059   0.000057     silent doautocmd <nomodeline> User ALELintPre
+                            
+    2              0.000009     for [l:lint_file, l:linter] in a:slots
+                                    " Only run lint_file linters if we should.
+    1              0.000021         if !l:lint_file || a:should_lint_file
+    1   0.012252   0.000097             if s:RunLinter(a:buffer, l:linter, l:lint_file)
+                                            " If a single linter ran, we shouldn't clear everything.
+    1              0.000003                 let l:can_clear_results = 0
+    1              0.000001             endif
+                                    else
+                                        " If we skipped running a lint_file linter still in the list,
+                                        " we shouldn't clear everything.
+                                        let l:can_clear_results = 0
+    1              0.000001         endif
+    2              0.000004     endfor
+                            
+                                " Clear the results if we can. This needs to be done when linters are
+                                " disabled, or ALE itself is disabled.
+    1              0.000002     if l:can_clear_results
+                                    call ale#engine#SetResults(a:buffer, [])
+    1              0.000001     elseif a:new_buffer
+                                    call s:AddProblemsFromOtherBuffers(   a:buffer,   map(copy(a:slots), 'v:val[1]'))
+    1              0.000010     endif
+
+FUNCTION  ale#util#InSandbox()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:289
+Called 8 times
+Total time:   0.000119
+ Self time:   0.000108
+
+count  total (s)   self (s)
+    8              0.000009     try
+    8   0.000067   0.000056         let &l:equalprg=&l:equalprg
+                                catch /E48/
+                                    " E48 is the sandbox error.
+                                    return 1
+    8              0.000007     endtry
+                            
+    8              0.000007     return 0
+
+FUNCTION  ale#path#Simplify()
+    Defined: ~/.vim/plugged/ale/autoload/ale/path.vim:15
+Called 172 times
+Total time:   0.002082
+ Self time:   0.002082
+
+count  total (s)   self (s)
+  172              0.000314     if has('unix')
+  172              0.000725         let l:unix_path = substitute(a:path, '\\', '/', 'g')
+                            
+  172              0.000908         return substitute(simplify(l:unix_path), '^//\+', '/', 'g') " no-custom-checks
+                                endif
+                            
+                                let l:win_path = substitute(a:path, '/', '\\', 'g')
+                            
+                                return substitute(simplify(l:win_path), '^\\\+', '\', 'g') " no-custom-checks
+
+FUNCTION  ale#path#Upwards()
+    Defined: ~/.vim/plugged/ale/autoload/ale/path.vim:159
+Called 4 times
+Total time:   0.000377
+ Self time:   0.000308
+
+count  total (s)   self (s)
+    4              0.000021     let l:pattern = has('win32') ? '\v/+|\\+' : '\v/+'
+    4              0.000010     let l:sep = has('win32') ? '\' : '/'
+    4   0.000119   0.000050     let l:parts = split(ale#path#Simplify(a:path), l:pattern)
+    4              0.000004     let l:path_list = []
+                            
+   16              0.000032     while !empty(l:parts)
+   12              0.000050         call add(l:path_list, join(l:parts, l:sep))
+   12              0.000036         let l:parts = l:parts[:-2]
+   16              0.000008     endwhile
+                            
+    4              0.000009     if has('win32') && a:path =~# '^[a-zA-z]:\'
+                                    " Add \ to C: for C:\, etc.
+                                    let l:path_list[-1] .= '\'
+    4              0.000009     elseif a:path[0] is# '/'
+                                    " If the path starts with /, even on Windows, add / and / to all paths.
+    4              0.000024         call map(l:path_list, '''/'' . v:val')
+    4              0.000008         call add(l:path_list, '/')
+    4              0.000004     endif
+                            
+    4              0.000004     return l:path_list
+
+FUNCTION  <SNR>44_CursorHoldUpdate()
+    Defined: ~/.vim/plugged/vim-devicons/plugin/webdevicons.vim:399
+Called 2 times
+Total time:   0.000209
+ Self time:   0.000045
+
+count  total (s)   self (s)
+    2              0.000009   if g:NERDTreeUpdateOnCursorHold != 1 || g:NERDTreeGitStatusUpdateOnCursorHold != 1
+                                return
+    2              0.000002   endif
+                            
+    2   0.000189   0.000025   if !exists('g:NERDTree') || !g:NERDTree.IsOpen()
+    2              0.000003     return
+                              endif
+                            
+                              " Do not update when a special buffer is selected
+                              if !empty(&l:buftype)
+                                return
+                              endif
+                            
+                              " winnr need to make focus go to opened file
+                              " CursorToTreeWin needed to avoid error on opening file
+                              let l:winnr = winnr()
+                              let l:altwinnr = winnr('#')
+                            
+                              call g:NERDTree.CursorToTreeWin()
+                              call b:NERDTree.root.refreshFlags()
+                              call NERDTreeRender()
+                            
+                              exec l:altwinnr . 'wincmd w'
+                              exec l:winnr . 'wincmd w'
+
+FUNCTION  ale#util#GetLineCount()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:83
+Called 1 time
+Total time:   0.000825
+ Self time:   0.000825
+
+count  total (s)   self (s)
+    1              0.000825     return len(getbufline(a:buffer, 1, '$'))
+
+FUNCTION  ale#engine#FixLocList()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:259
+Called 1 time
+Total time:   0.009396
+ Self time:   0.004368
+
+count  total (s)   self (s)
+    1   0.000058   0.000014     let l:mappings = ale#GetFilenameMappings(a:buffer, a:linter_name)
+                            
+    1              0.000002     if !empty(l:mappings)
+                                    " We need to apply reverse filename mapping here.
+                                    let l:mappings = ale#filename_mapping#Invert(l:mappings)
+    1              0.000001     endif
+                            
+    1              0.000002     let l:bufnr_map = {}
+    1              0.000001     let l:new_loclist = []
+                            
+                                " Some errors have line numbers beyond the end of the file,
+                                " so we need to adjust them so they set the error at the last line
+                                " of the file instead.
+    1   0.000831   0.000006     let l:last_line_number = ale#util#GetLineCount(a:buffer)
+                            
+   42              0.000045     for l:old_item in a:loclist
+                                    " Copy the loclist item with some default values and corrections.
+                                    "
+                                    " line and column numbers will be converted to numbers.
+                                    " The buffer will default to the buffer being checked.
+                                    " The vcol setting will default to 0, a byte index.
+                                    " The error type will default to 'E' for errors.
+                                    " The error number will default to -1.
+                                    "
+                                    " The line number and text are the only required keys.
+                                    "
+                                    " The linter_name will be set on the errors so it can be used in
+                                    " output, filtering, etc..
+   41              0.000562         let l:item = {   'bufnr': a:buffer,   'text': l:old_item.text,   'lnum': str2nr(l:old_item.lnum),   'col': str2nr(get(l:old_item, 'col', 0)),   'vcol': 0,   'type': get(l:old_item, 'type', 'E'),   'nr': get(l:old_item, 'nr', -1),   'linter_name': a:linter_name,}
+                            
+   41              0.000047         if a:from_other_source
+                                        let l:item.from_other_source = 1
+   41              0.000021         endif
+                            
+   41              0.000078         if has_key(l:old_item, 'code')
+   41              0.000066             let l:item.code = l:old_item.code
+   41              0.000024         endif
+                            
+   41              0.000110         let l:old_name = get(l:old_item, 'filename', '')
+                            
+                                    " Map parsed from output to local filesystem files.
+   41              0.000115         if !empty(l:old_name) && !empty(l:mappings)
+                                        let l:old_name = ale#filename_mapping#Map(l:old_name, l:mappings)
+   41              0.000014         endif
+                            
+   41              0.000111         if !empty(l:old_name) && !ale#path#IsTempName(l:old_name)
+                                        " Use the filename given.
+                                        " Temporary files are assumed to be for this buffer,
+                                        " and the filename is not included then, because it looks bad
+                                        " in the loclist window.
+                                        let l:filename = l:old_name
+                                        let l:item.filename = l:filename
+                            
+                                        if has_key(l:old_item, 'bufnr')
+                                            " If a buffer number is also given, include that too.
+                                            " If Vim detects that he buffer number is valid, it will
+                                            " be used instead of the filename.
+                                            let l:item.bufnr = l:old_item.bufnr
+                                        elseif has_key(l:bufnr_map, l:filename)
+                                            " Get the buffer number from the map, which can be faster.
+                                            let l:item.bufnr = l:bufnr_map[l:filename]
+                                        else
+                                            " Look up the buffer number.
+                                            let l:item.bufnr = bufnr(l:filename)
+                                            let l:bufnr_map[l:filename] = l:item.bufnr
+                                        endif
+   41              0.000081         elseif has_key(l:old_item, 'bufnr')
+                                        let l:item.bufnr = l:old_item.bufnr
+   41              0.000018         endif
+                            
+   41              0.000078         if has_key(l:old_item, 'detail')
+                                        let l:item.detail = l:old_item.detail
+   41              0.000025         endif
+                            
+                                    " Pass on a end_col key if set, used for highlights.
+   41              0.000078         if has_key(l:old_item, 'end_col')
+                                        let l:item.end_col = str2nr(l:old_item.end_col)
+   41              0.000020         endif
+                            
+   41              0.000073         if has_key(l:old_item, 'end_lnum')
+                                        let l:item.end_lnum = str2nr(l:old_item.end_lnum)
+   41              0.000014         endif
+                            
+   41              0.000072         if has_key(l:old_item, 'sub_type')
+   41              0.000072             let l:item.sub_type = l:old_item.sub_type
+   41              0.000015         endif
+                            
+   41              0.000048         if l:item.lnum < 1
+                                        " When errors appear before line 1, put them at line 1.
+                                        let l:item.lnum = 1
+   41              0.000086         elseif l:item.bufnr == a:buffer && l:item.lnum > l:last_line_number
+                                        " When errors go beyond the end of the file, put them at the end.
+                                        " This is only done for the current buffer.
+                                        let l:item.lnum = l:last_line_number
+   41              0.000085         elseif get(l:old_item, 'vcol', 0)
+                                        " Convert virtual column positions to byte positions.
+                                        " The positions will be off if the buffer has changed recently.
+   41              0.000162             let l:line = getbufline(a:buffer, l:item.lnum)[0]
+                            
+   41   0.004369   0.000222             let l:item.col = ale#util#Col(l:line, l:item.col)
+                            
+   41              0.000080             if has_key(l:item, 'end_col')
+                                            let l:end_line = get(l:item, 'end_lnum', l:line) != l:line   ? getbufline(a:buffer, l:item.end_lnum)[0]   : l:line
+                            
+                                            let l:item.end_col = ale#util#Col(l:end_line, l:item.end_col)
+   41              0.000018             endif
+   41              0.000026         endif
+                            
+   41              0.000092         call add(l:new_loclist, l:item)
+   42              0.000040     endfor
+                            
+    1   0.000020   0.000008     let l:type_map = get(ale#Var(a:buffer, 'type_map'), a:linter_name, {})
+                            
+    1              0.000002     if !empty(l:type_map)
+                                    call s:RemapItemTypes(l:type_map, l:new_loclist)
+    1              0.000001     endif
+                            
+    1              0.000001     return l:new_loclist
+
+FUNCTION  223()
+    Defined: ~/.vim/plugged/nerdtree/lib/nerdtree/nerdtree.vim:140
+Called 2 times
+Total time:   0.000142
+ Self time:   0.000136
+
+count  total (s)   self (s)
+    2              0.000009     if exists('t:NERDTreeBufName')
+                                    return bufwinnr(t:NERDTreeBufName)
+    2              0.000002     endif
+                            
+                                " If WindowTree, there is no t:NERDTreeBufName variable. Search all windows.
+    4              0.000021     for w in range(1,winnr('$'))
+    2   0.000063   0.000057         if bufname(winbufnr(w)) =~# '^' . g:NERDTreeCreator.BufNamePrefix() . '\d\+$'
+                                        return w
+    2              0.000003         endif
+    4              0.000006     endfor
+                            
+    2              0.000003     return -1
+
+FUNCTION  224()
+    Defined: ~/.vim/plugged/nerdtree/lib/nerdtree/nerdtree.vim:156
+Called 2 times
+Total time:   0.000164
+ Self time:   0.000022
+
+count  total (s)   self (s)
+    2   0.000162   0.000020     return s:NERDTree.GetWinNum() !=# -1
+
+FUNCTION  <SNR>86_ApplyPartialTimer()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:436
+Called 1 time
+Total time:   0.003217
+ Self time:   0.000020
+
+count  total (s)   self (s)
+    1              0.000003     if has_key(s:partial_timers, a:timer_id)
+    1              0.000005         let [l:Callback, l:args] = remove(s:partial_timers, a:timer_id)
+    1   0.003209   0.000012         call call(l:Callback, [a:timer_id] + l:args)
+    1              0.000000     endif
+
+FUNCTION  <SNR>102_RunLinter()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:579
+Called 1 time
+Total time:   0.012155
+ Self time:   0.000063
+
+count  total (s)   self (s)
+    1              0.000013     if !empty(a:linter.lsp)
+                                    return ale#lsp_linter#CheckWithLSP(a:buffer, a:linter)
+    1              0.000001     else
+    1   0.001982   0.000012         let l:executable = ale#linter#GetExecutable(a:buffer, a:linter)
+                            
+    1   0.010152   0.000030         return s:RunIfExecutable(a:buffer, a:linter, a:lint_file, l:executable)
+                                endif
+                            
+                                return 0
+
+FUNCTION  ale#engine#SetResults()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:184
+Called 1 time
+Total time:   0.008364
+ Self time:   0.000199
+
+count  total (s)   self (s)
+    1   0.000019   0.000006     let l:linting_is_done = !ale#engine#IsCheckingBuffer(a:buffer)
+                            
+                                " Set signs first. This could potentially fix some line numbers.
+                                " The List could be sorted again here by SetSigns.
+    1              0.000002     if g:ale_set_signs
+    1   0.007485   0.000081         call ale#sign#SetSigns(a:buffer, a:loclist)
+    1              0.000001     endif
+                            
+    1              0.000002     if g:ale_set_quickfix || g:ale_set_loclist
+    1   0.000045   0.000007         call ale#list#SetLists(a:buffer, a:loclist)
+    1              0.000001     endif
+                            
+    1              0.000003     if exists('*ale#statusline#Update')
+                                    " Don't load/run if not already loaded.
+                                    call ale#statusline#Update(a:buffer, a:loclist)
+    1              0.000001     endif
+                            
+    1              0.000001     if g:ale_set_highlights
+                                    call ale#highlight#SetHighlights(a:buffer, a:loclist)
+    1              0.000001     endif
+                            
+    1              0.000001     if l:linting_is_done
+    1              0.000001         if g:ale_echo_cursor
+                                        " Try and echo the warning now.
+                                        " This will only do something meaningful if we're in normal mode.
+    1   0.000389   0.000006             call ale#cursor#EchoCursorWarning()
+    1              0.000001         endif
+                            
+    1              0.000001         if g:ale_virtualtext_cursor
+                                        " Try and show the warning now.
+                                        " This will only do something meaningful if we're in normal mode.
+                                        call ale#virtualtext#ShowCursorWarning()
+    1              0.000000         endif
+                            
+                                    " Reset the save event marker, used for opening windows, etc.
+    1              0.000004         call setbufvar(a:buffer, 'ale_save_event_fired', 0)
+                                    " Set a marker showing how many times a buffer has been checked.
+    1              0.000004         call setbufvar(   a:buffer,   'ale_linted',   getbufvar(a:buffer, 'ale_linted', 0) + 1)
+                            
+                                    " Automatically remove all managed temporary files and directories
+                                    " now that all jobs have completed.
+    1   0.000338   0.000014         call ale#command#RemoveManagedFiles(a:buffer)
+                            
+                                    " Call user autocommands. This allows users to hook into ALE's lint cycle.
+    1   0.000049   0.000046         silent doautocmd <nomodeline> User ALELintPost
+    1              0.000001     endif
+
+FUNCTION  ale#semver#RunWithVersionCheck()
+    Defined: ~/.vim/plugged/ale/autoload/ale/semver.vim:37
+Called 1 time
+Total time:   0.002114
+ Self time:   0.000020
+
+count  total (s)   self (s)
+    1              0.000003     if empty(a:executable)
+                                    return ''
+    1              0.000000     endif
+                            
+    1              0.000002     let l:cache = s:version_cache
+                            
+    1              0.000003     if has_key(s:version_cache, a:executable)
+    1   0.002104   0.000010         return a:Callback(a:buffer, s:version_cache[a:executable])
+                                endif
+                            
+                                return ale#command#Run(   a:buffer,   a:command,   {_, output -> a:Callback(a:buffer, s:GetVersion(a:executable, output))},   {'output_stream': 'both', 'executable': a:executable})
+
+FUNCTION  ale#util#GetMatches()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:324
+Called 1 time
+Total time:   0.001004
+ Self time:   0.001004
+
+count  total (s)   self (s)
+    1              0.000002     let l:matches = []
+    1              0.000005     let l:lines = type(a:lines) is v:t_list ? a:lines : [a:lines]
+    1              0.000004     let l:patterns = type(a:patterns) is v:t_list ? a:patterns : [a:patterns]
+                            
+   42              0.000046     for l:line in l:lines
+   41              0.000058         for l:pattern in l:patterns
+   41              0.000621             let l:match = matchlist(l:line, l:pattern)
+                            
+   41              0.000070             if !empty(l:match)
+   41              0.000078                 call add(l:matches, l:match)
+   41              0.000016                 break
+                                        endif
+   41              0.000022         endfor
+   42              0.000017     endfor
+                            
+    1              0.000001     return l:matches
+
+FUNCTION  <SNR>102_RunIfExecutable()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:527
+Called 1 time
+Total time:   0.010122
+ Self time:   0.000153
+
+count  total (s)   self (s)
+    1   0.000009   0.000005     if ale#command#IsDeferred(a:executable)
+                                    let a:executable.result_callback = {   executable -> s:RunIfExecutable(       a:buffer,       a:linter,       a:lint_file,       executable   )}
+                            
+                                    return 1
+    1              0.000000     endif
+                            
+    1   0.000017   0.000006     if ale#engine#IsExecutable(a:buffer, a:executable)
+                                    " Use different job types for file or linter jobs.
+    1              0.000002         let l:job_type = a:lint_file ? 'file_linter' : 'linter'
+    1              0.000005         call setbufvar(a:buffer, 'ale_job_type', l:job_type)
+                            
+                                    " Get the cwd for the linter and set it before we call GetCommand.
+                                    " This will ensure that ale#command#Run uses it by default.
+    1   0.000635   0.000005         let l:cwd = ale#linter#GetCwd(a:buffer, a:linter)
+                            
+    1              0.000001         if l:cwd isnot v:null
+    1   0.000023   0.000007             call ale#command#SetCwd(a:buffer, l:cwd)
+    1              0.000001         endif
+                            
+    1   0.004076   0.000007         let l:command = ale#linter#GetCommand(a:buffer, a:linter)
+                            
+    1              0.000002         if l:cwd isnot v:null
+    1   0.000016   0.000008             call ale#command#ResetCwd(a:buffer)
+    1              0.000000         endif
+                            
+    1              0.000011         let l:options = {   'cwd': l:cwd,   'executable': a:executable,   'buffer': a:buffer,   'linter': a:linter,   'output_stream': get(a:linter, 'output_stream', 'stdout'),   'read_buffer': a:linter.read_buffer,   'lint_file': a:lint_file,}
+                            
+    1   0.005311   0.000080         return s:RunJob(l:command, l:options)
+                                endif
+                            
+                                return 0
+
+FUNCTION  ale#command#CreateTempFile()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:110
+Called 1 time
+Total time:   0.002859
+ Self time:   0.000581
+
+count  total (s)   self (s)
+    1              0.000002     if empty(a:temporary_file)
+                                    " There is no file, so we didn't create anything.
+                                    return 0
+    1              0.000001     endif
+                            
+                                " Use an existing list of lines of input if we have it, or get the lines
+                                " from the file.
+    1              0.000409     let l:lines = a:input isnot v:null ? a:input : getbufline(a:buffer, 1, '$')
+                            
+    1              0.000004     let l:temporary_directory = fnamemodify(a:temporary_file, ':h')
+                                " Create the temporary directory for the file, unreadable by 'other'
+                                " users.
+    1              0.000135     call mkdir(l:temporary_directory, '', 0750)
+                                " Automatically delete the directory later.
+    1   0.000032   0.000011     call ale#command#ManageDirectory(a:buffer, l:temporary_directory)
+                                " Write the buffer out to a file.
+    1   0.002265   0.000008     call ale#util#Writefile(a:buffer, l:lines, a:temporary_file)
+                            
+    1              0.000002     return 1
+
+FUNCTION  <SNR>63_Remove_Matches()
+    Defined: /Applications/MacVim.app/Contents/Resources/vim/runtime/plugin/matchparen.vim:196
+Called 4 times
+Total time:   0.000043
+ Self time:   0.000043
+
+count  total (s)   self (s)
+    4              0.000015   if exists('w:paren_hl_on') && w:paren_hl_on
+                                silent! call matchdelete(3)
+                                let w:paren_hl_on = 0
+    4              0.000003   endif
+
+FUNCTION  ale#cursor#EchoCursorWarning()
+    Defined: ~/.vim/plugged/ale/autoload/ale/cursor.vim:63
+Called 3 times
+Total time:   0.001311
+ Self time:   0.000188
+
+count  total (s)   self (s)
+    3              0.000021     let l:buffer = bufnr('')
+                            
+    3              0.000006     if !g:ale_echo_cursor && !g:ale_cursor_detail
+                                    return
+    3              0.000003     endif
+                            
+                                " Only echo the warnings in normal mode, otherwise we will get problems.
+    3              0.000010     if mode(1) isnot# 'n'
+                                    return
+    3              0.000001     endif
+                            
+    3   0.000364   0.000017     if ale#ShouldDoNothing(l:buffer)
+                                    return
+    3              0.000000     endif
+                            
+    3   0.000801   0.000025     let [l:info, l:loc] = ale#util#FindItemAtCursor(l:buffer)
+                            
+    3              0.000004     if g:ale_echo_cursor
+    3              0.000006         if !empty(l:loc)
+                                        let l:format = ale#Var(l:buffer, 'echo_msg_format')
+                                        let l:msg = ale#GetLocItemMessage(l:loc, l:format)
+                                        call ale#cursor#TruncatedEcho(l:msg)
+                                        let l:info.echoed = 1
+    3              0.000007         elseif get(l:info, 'echoed')
+                                        " We'll only clear the echoed message when moving off errors once,
+                                        " so we don't continually clear the echo line.
+                                        execute 'echo'
+                                        let l:info.echoed = 0
+    3              0.000002         endif
+    3              0.000001     endif
+                            
+    3              0.000004     if g:ale_cursor_detail
+                                    if !empty(l:loc)
+                                        call s:ShowCursorDetailForItem(l:loc, {'stay_here': 1})
+                                    else
+                                        call ale#preview#CloseIfTypeMatches('ale-preview')
+                                    endif
+    3              0.000002     endif
+
+FUNCTION  <SNR>103_TemporaryFilename()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:132
+Called 1 time
+Total time:   0.000045
+ Self time:   0.000024
+
+count  total (s)   self (s)
+    1              0.000005     let l:filename = fnamemodify(bufname(a:buffer), ':t')
+                            
+    1              0.000002     if empty(l:filename)
+                                    " If the buffer's filename is empty, create a dummy filename.
+                                    let l:ft = getbufvar(a:buffer, '&filetype')
+                                    let l:filename = 'file' . ale#filetypes#GuessExtension(l:ft)
+    1              0.000001     endif
+                            
+                                " Create a temporary filename, <temp_dir>/<original_basename>
+                                " The file itself will not be created by this function.
+    1   0.000031   0.000010     return ale#util#Tempname() . (has('win32') ? '\' : '/') . l:filename
+
+FUNCTION  ale#engine#HandleLoclist()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:108
+Called 1 time
+Total time:   0.019662
+ Self time:   0.000433
+
+count  total (s)   self (s)
+    1              0.000005     let l:info = get(g:ale_buffer_info, a:buffer, {})
+                            
+    1              0.000002     if empty(l:info)
+                                    return
+    1              0.000000     endif
+                            
+    1              0.000001     if !a:from_other_source
+                                    " Remove this linter from the list of active linters.
+                                    " This may have already been done when the job exits.
+    1              0.000003         call filter(l:info.active_linter_list, 'v:val.name isnot# a:linter_name')
+    1              0.000001     endif
+                            
+                                " Make some adjustments to the loclists to fix common problems, and also
+                                " to set default values for loclist items.
+    1   0.009408   0.000012     let l:linter_loclist = ale#engine#FixLocList(   a:buffer,   a:linter_name,   a:from_other_source,   a:loclist,)
+                            
+                                " Remove previous items for this linter.
+    1              0.000137     call filter(l:info.loclist, 'v:val.linter_name isnot# a:linter_name')
+                            
+                                " We don't need to add items or sort the list when this list is empty.
+    1              0.000002     if !empty(l:linter_loclist)
+                                    " Add the new items.
+    1              0.000006         call extend(l:info.loclist, l:linter_loclist)
+                            
+                                    " Sort the loclist again.
+                                    " We need a sorted list so we can run a binary search against it
+                                    " for efficient lookup of the messages in the cursor handler.
+    1   0.001597   0.000236         call sort(l:info.loclist, 'ale#util#LocItemCompare')
+    1              0.000000     endif
+                            
+    1   0.000113   0.000005     if ale#ShouldDoNothing(a:buffer)
+                                    return
+    1              0.000000     endif
+                            
+    1   0.008375   0.000011     call ale#engine#SetResults(a:buffer, l:info.loclist)
+
+FUNCTION  ale#history#Add()
+    Defined: ~/.vim/plugged/ale/autoload/ale/history.vim:12
+Called 1 time
+Total time:   0.000041
+ Self time:   0.000041
+
+count  total (s)   self (s)
+    1              0.000002     if g:ale_max_buffer_history_size <= 0
+                                    " Don't save anything if the history isn't a positive number.
+                                    call setbufvar(a:buffer, 'ale_history', [])
+                            
+                                    return
+    1              0.000000     endif
+                            
+    1              0.000010     let l:history = getbufvar(a:buffer, 'ale_history', [])
+                            
+                                " Remove the first item if we hit the max history size.
+    1              0.000003     if len(l:history) >= g:ale_max_buffer_history_size
+                                    let l:history = l:history[1:]
+    1              0.000001     endif
+                            
+    1              0.000010     call add(l:history, {   'status': a:status,   'job_id': a:job_id,   'command': a:command,})
+                            
+    1              0.000008     call setbufvar(a:buffer, 'ale_history', l:history)
+
+FUNCTION  <SNR>112_FixList()
+    Defined: ~/.vim/plugged/ale/autoload/ale/list.vim:60
+Called 1 time
+Total time:   0.002847
+ Self time:   0.000772
+
+count  total (s)   self (s)
+    1   0.000018   0.000006     let l:format = ale#Var(a:buffer, 'loclist_msg_format')
+    1              0.000001     let l:new_list = []
+                            
+   42              0.000035     for l:item in a:list
+   41              0.000166         let l:fixed_item = copy(l:item)
+                            
+   41   0.002322   0.000259         let l:fixed_item.text = ale#GetLocItemMessage(l:item, l:format)
+                            
+   41              0.000043         if l:item.bufnr == -1
+                                        " If the buffer number is invalid, remove it.
+                                        call remove(l:fixed_item, 'bufnr')
+   41              0.000019         endif
+                            
+   41              0.000081         call add(l:new_list, l:fixed_item)
+   42              0.000027     endfor
+                            
+    1              0.000001     return l:new_list
+
+FUNCTION  ale#history#Get()
+    Defined: ~/.vim/plugged/ale/autoload/ale/history.vim:8
+Called 2 times
+Total time:   0.000022
+ Self time:   0.000022
+
+count  total (s)   self (s)
+    2              0.000020     return copy(getbufvar(a:buffer, 'ale_history', []))
+
+FUNCTION  <SNR>111_UpdateLineNumbers()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:259
+Called 1 time
+Total time:   0.000545
+ Self time:   0.000545
+
+count  total (s)   self (s)
+    1              0.000002     let l:line_map = {}
+    1              0.000002     let l:line_numbers_changed = 0
+                            
+   39              0.000045     for [l:line, l:sign_id, l:name] in a:current_sign_list
+   38              0.000074         let l:line_map[l:sign_id] = l:line
+   39              0.000017     endfor
+                            
+   42              0.000031     for l:item in a:loclist
+   41              0.000041         if l:item.bufnr == a:buffer
+   41              0.000129             let l:lnum = get(l:line_map, get(l:item, 'sign_id', 0), 0)
+                            
+   41              0.000046             if l:lnum && l:item.lnum != l:lnum
+                                            let l:item.lnum = l:lnum
+                                            let l:line_numbers_changed = 1
+   41              0.000017             endif
+   41              0.000019         endif
+   42              0.000018     endfor
+                            
+                                " When the line numbers change, sort the list again
+    1              0.000001     if l:line_numbers_changed
+                                    call sort(a:loclist, 'ale#util#LocItemCompare')
+    1              0.000000     endif
+
+FUNCTION  <SNR>108_VimExitCallback()
+    Defined: ~/.vim/plugged/ale/autoload/ale/job.vim:114
+Called 1 time
+Total time:   0.023303
+ Self time:   0.000057
+
+count  total (s)   self (s)
+    1   0.000016   0.000008     let l:job_id = ale#job#ParseVim8ProcessID(string(a:job))
+    1              0.000004     let l:info = get(s:job_map, l:job_id, {})
+                            
+    1              0.000002     if empty(l:info)
+                                    return
+    1              0.000000     endif
+                            
+    1              0.000002     let l:info.exit_code = a:exit_code
+                            
+                                " The program can exit before the data has finished being read.
+    1              0.000004     if ch_status(job_getchannel(a:job)) is# 'closed'
+    1              0.000002         try
+    1              0.000004             if !empty(l:info) && has_key(l:info, 'exit_cb')
+                                            " We have to remove the callback, so we don't call it twice.
+    1   0.023252   0.000014                 call ale#util#GetFunction(remove(l:info, 'exit_cb'))(l:job_id, a:exit_code)
+    1              0.000001             endif
+    1              0.000001         finally
+                                        " Automatically forget about the job after it's done.
+    1              0.000003             if has_key(s:job_map, l:job_id)
+    1              0.000003                 call remove(s:job_map, l:job_id)
+    1              0.000001             endif
+    1              0.000000         endtry
+    1              0.000001     endif
+
+FUNCTION  ale#linter#GetExecutable()
+    Defined: ~/.vim/plugged/ale/autoload/ale/linter.vim:423
+Called 1 time
+Total time:   0.001970
+ Self time:   0.000030
+
+count  total (s)   self (s)
+    1              0.000005     let l:Executable = a:linter.executable
+                            
+    1   0.001963   0.000023     return type(l:Executable) is v:t_func   ? l:Executable(a:buffer)   : l:Executable
+
+FUNCTION  ale#util#GetFunction()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:87
+Called 43 times
+Total time:   0.000282
+ Self time:   0.000282
+
+count  total (s)   self (s)
+   43              0.000100     if type(a:string_or_ref) is v:t_string
+    1              0.000006         return function(a:string_or_ref)
+   42              0.000028     endif
+                            
+   42              0.000041     return a:string_or_ref
+
+FUNCTION  ale#linter#RemoveIgnored()
+    Defined: ~/.vim/plugged/ale/autoload/ale/linter.vim:412
+Called 1 time
+Total time:   0.000040
+ Self time:   0.000017
+
+count  total (s)   self (s)
+                                " Apply ignore lists for linters only if needed.
+    1   0.000018   0.000005     let l:ignore_config = ale#Var(a:buffer, 'linters_ignore')
+    1   0.000015   0.000005     let l:disable_lsp = ale#Var(a:buffer, 'disable_lsp')
+                            
+    1              0.000005     return !empty(l:ignore_config) || l:disable_lsp   ? ale#engine#ignore#Exclude(a:filetype, a:linters, l:ignore_config, l:disable_lsp)   : a:linters
+
+FUNCTION  ale#util#Tempname()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:300
+Called 1 time
+Total time:   0.000021
+ Self time:   0.000021
+
+count  total (s)   self (s)
+    1              0.000001     let l:clear_tempdir = 0
+                            
+    1              0.000004     if exists('$TMPDIR') && empty($TMPDIR)
+                                    let l:clear_tempdir = 1
+                                    let $TMPDIR = '/tmp'
+    1              0.000000     endif
+                            
+    1              0.000001     try
+    1              0.000003         let l:name = tempname() " no-custom-checks
+    1              0.000002     finally
+    1              0.000001         if l:clear_tempdir
+                                        let $TMPDIR = ''
+    1              0.000001         endif
+    1              0.000001     endtry
+                            
+    1              0.000001     return l:name
+
+FUNCTION  ale#engine#IsExecutable()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:53
+Called 1 time
+Total time:   0.000011
+ Self time:   0.000011
+
+count  total (s)   self (s)
+    1              0.000002     if empty(a:executable)
+                                    " Don't log the executable check if the executable string is empty.
+                                    return 0
+    1              0.000001     endif
+                            
+                                " Check for a cached executable() check.
+    1              0.000003     let l:result = get(s:executable_cache_map, a:executable, v:null)
+                            
+    1              0.000001     if l:result isnot v:null
+    1              0.000001         return l:result
+                                endif
+                            
+                                " Check if the file is executable, and convert -1 to 1.
+                                let l:result = executable(a:executable) isnot 0
+                            
+                                " Cache the executable check if we found it, or if the option to cache
+                                " failing checks is on.
+                                if l:result || get(g:, 'ale_cache_executable_check_failures', 0)
+                                    let s:executable_cache_map[a:executable] = l:result
+                                endif
+                            
+                                if g:ale_history_enabled
+                                    call ale#history#Add(a:buffer, l:result, 'executable', a:executable)
+                                endif
+                            
+                                return l:result
+
+FUNCTION  <SNR>110_StopCursorTimer()
+    Defined: ~/.vim/plugged/ale/autoload/ale/cursor.vim:56
+Called 3 times
+Total time:   0.000029
+ Self time:   0.000029
+
+count  total (s)   self (s)
+    3              0.000008     if s:cursor_timer != -1
+    1              0.000002         call timer_stop(s:cursor_timer)
+    1              0.000002         let s:cursor_timer = -1
+    3              0.000002     endif
+
+FUNCTION  <SNR>102_StopCurrentJobs()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:449
+Called 1 time
+Total time:   0.000066
+ Self time:   0.000039
+
+count  total (s)   self (s)
+    1              0.000004     let l:info = get(g:ale_buffer_info, a:buffer, {})
+    1   0.000034   0.000007     call ale#command#StopJobs(a:buffer, 'linter')
+                            
+                                " Update the active linter list, clearing out anything not running.
+    1              0.000001     if a:clear_lint_file_jobs
+                                    call ale#command#StopJobs(a:buffer, 'file_linter')
+                                    let l:info.active_linter_list = []
+    1              0.000000     else
+    1              0.000001         let l:lint_file_map = {}
+                            
+                                    " Use a previously computed map of `lint_file` values to find
+                                    " linters that are used for linting files.
+    2              0.000003         for [l:lint_file, l:linter] in a:linter_slots
+    1              0.000002             if l:lint_file is 1
+                                            let l:lint_file_map[l:linter.name] = 1
+    1              0.000001             endif
+    2              0.000001         endfor
+                            
+                                    " Keep jobs for linting files when we're only linting buffers.
+    1              0.000004         call filter(l:info.active_linter_list, 'get(l:lint_file_map, v:val.name)')
+    1              0.000001     endif
+
+FUNCTION  ale#command#RemoveManagedFiles()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:83
+Called 1 time
+Total time:   0.000324
+ Self time:   0.000314
+
+count  total (s)   self (s)
+    1              0.000004     let l:info = get(s:buffer_data, a:buffer, {})
+                            
+    1              0.000003     if !empty(l:info) && empty(l:info.jobs)
+                                    " We can't delete anything in a sandbox, so wait until we escape from
+                                    " it to delete temporary files and directories.
+    1   0.000014   0.000004         if ale#util#InSandbox()
+                                        return
+    1              0.000000         endif
+                            
+                                    " Delete files with a call akin to a plan `rm` command.
+    1              0.000002         for l:filename in l:info.file_list
+                                        call delete(l:filename)
+    1              0.000001         endfor
+                            
+                                    " Delete directories like `rm -rf`.
+                                    " Directories are handled differently from files, so paths that are
+                                    " intended to be single files can be set up for automatic deletion
+                                    " without accidentally deleting entire directories.
+    2              0.000004         for l:directory in l:info.directory_list
+    1              0.000276             call delete(l:directory, 'rf')
+    2              0.000003         endfor
+                            
+    1              0.000004         call remove(s:buffer_data, a:buffer)
+    1              0.000001     endif
+
+FUNCTION  <SNR>87_GetLinterNames()
+    Defined: ~/.vim/plugged/ale/autoload/ale/linter.vim:329
+Called 1 time
+Total time:   0.000023
+ Self time:   0.000023
+
+count  total (s)   self (s)
+    1              0.000003     let l:buffer_ale_linters = get(b:, 'ale_linters', {})
+                            
+                                " b:ale_linters can be set to 'all'
+    1              0.000002     if l:buffer_ale_linters is# 'all'
+                                    return 'all'
+    1              0.000000     endif
+                            
+                                " b:ale_linters can be set to a List.
+    1              0.000003     if type(l:buffer_ale_linters) is v:t_list
+                                    return l:buffer_ale_linters
+    1              0.000000     endif
+                            
+                                " Try to get a buffer-local setting for the filetype
+    1              0.000002     if has_key(l:buffer_ale_linters, a:original_filetype)
+                                    return l:buffer_ale_linters[a:original_filetype]
+    1              0.000000     endif
+                            
+                                " Try to get a global setting for the filetype
+    1              0.000003     if has_key(g:ale_linters, a:original_filetype)
+    1              0.000002         return g:ale_linters[a:original_filetype]
+                                endif
+                            
+                                " If the user has configured ALE to only enable linters explicitly, then
+                                " don't enable any linters by default.
+                                if g:ale_linters_explicit
+                                    return []
+                                endif
+                            
+                                " Try to get a default setting for the filetype
+                                if has_key(s:default_ale_linters, a:original_filetype)
+                                    return s:default_ale_linters[a:original_filetype]
+                                endif
+                            
+                                return 'all'
+
+FUNCTION  ale#command#StopJobs()
+    Defined: ~/.vim/plugged/ale/autoload/ale/command.vim:261
+Called 1 time
+Total time:   0.000027
+ Self time:   0.000027
+
+count  total (s)   self (s)
+    1              0.000005     let l:info = get(s:buffer_data, a:buffer, {})
+                            
+    1              0.000002     if !empty(l:info)
+    1              0.000002         let l:new_map = {}
+                            
+    1              0.000004         for [l:job_id, l:job_type] in items(l:info.jobs)
+                                        let l:job_id = str2nr(l:job_id)
+                            
+                                        if a:job_type is# 'all' || a:job_type is# l:job_type
+                                            call ale#job#Stop(l:job_id)
+                                        else
+                                            let l:new_map[l:job_id] = l:job_type
+                                        endif
+    1              0.000002         endfor
+                            
+    1              0.000003         let l:info.jobs = l:new_map
+    1              0.000000     endif
+
+FUNCTION  ale#cursor#EchoCursorWarningWithDelay()
+    Defined: ~/.vim/plugged/ale/autoload/ale/cursor.vim:104
+Called 3 times
+Total time:   0.000280
+ Self time:   0.000239
+
+count  total (s)   self (s)
+    3              0.000022     let l:buffer = bufnr('')
+                            
+    3              0.000010     if !g:ale_echo_cursor && !g:ale_cursor_detail
+                                    return
+    3              0.000004     endif
+                            
+                                " Only echo the warnings in normal mode, otherwise we will get problems.
+    3              0.000013     if mode(1) isnot# 'n'
+                                    return
+    3              0.000002     endif
+                            
+    3   0.000066   0.000037     call s:StopCursorTimer()
+                            
+    3              0.000035     let l:pos = getpos('.')[0:2]
+                            
+    3              0.000011     if !exists('w:last_pos')
+                                    let w:last_pos = [0, 0, 0]
+    3              0.000002     endif
+                            
+                                " Check the current buffer, line, and column number against the last
+                                " recorded position. If the position has actually changed, *then*
+                                " we should echo something. Otherwise we can end up doing processing
+                                " the echo message far too frequently.
+    3              0.000007     if l:pos != w:last_pos
+    1   0.000027   0.000015         let l:delay = ale#Var(l:buffer, 'echo_delay')
+                            
+    1              0.000004         let w:last_pos = l:pos
+    1              0.000007         let s:cursor_timer = timer_start(   l:delay,   function('ale#cursor#EchoCursorWarning'))
+    3              0.000002     endif
+
+FUNCTION  ale#sign#ReadSigns()
+    Defined: ~/.vim/plugged/ale/autoload/ale/sign.vim:173
+Called 1 time
+Total time:   0.000126
+ Self time:   0.000119
+
+count  total (s)   self (s)
+    1              0.000004     redir => l:output
+    1   0.000100   0.000093         silent execute 'sign place ' . s:GroupCmd() . s:PriorityCmd() . ' buffer=' . a:buffer
+    1              0.000003     redir end
+                            
+    1              0.000018     return split(l:output, "\n")
+
+FUNCTION  <SNR>102_RunJob()
+    Defined: ~/.vim/plugged/ale/autoload/ale/engine.vim:401
+Called 1 time
+Total time:   0.005231
+ Self time:   0.000233
+
+count  total (s)   self (s)
+    1   0.000011   0.000006     if ale#command#IsDeferred(a:command)
+                                    let a:command.result_callback = {   command -> s:RunJob(command, a:options)}
+                            
+                                    return 1
+    1              0.000001     endif
+                            
+    1              0.000002     let l:command = a:command
+                            
+    1              0.000002     if empty(l:command)
+                                    return 0
+    1              0.000001     endif
+                            
+    1              0.000002     let l:cwd = a:options.cwd
+    1              0.000002     let l:executable = a:options.executable
+    1              0.000001     let l:buffer = a:options.buffer
+    1              0.000002     let l:linter = a:options.linter
+    1              0.000002     let l:output_stream = a:options.output_stream
+    1              0.000002     let l:read_buffer = a:options.read_buffer && !a:options.lint_file
+    1              0.000004     let l:info = g:ale_buffer_info[l:buffer]
+                            
+    1              0.000009     let l:Callback = function('s:HandleExit', [{   'linter': l:linter,   'executable': l:executable,}])
+    1   0.004991   0.000042     let l:result = ale#command#Run(l:buffer, l:command, l:Callback, {   'cwd': l:cwd,   'output_stream': l:output_stream,   'executable': l:executable,   'read_buffer': l:read_buffer,   'log_output': 1,   'filename_mappings': ale#GetFilenameMappings(l:buffer, l:linter.name),})
+                            
+                                " Only proceed if the job is being run.
+    1              0.000005     if empty(l:result)
+                                    return 0
+    1              0.000000     endif
+                            
+    1   0.000048   0.000027     call ale#engine#MarkLinterActive(l:info, l:linter)
+                            
+    1   0.000131   0.000108     silent doautocmd <nomodeline> User ALEJobStarted
+                            
+    1              0.000002     return 1
+
+FUNCTION  ale#util#Col()
+    Defined: ~/.vim/plugged/ale/autoload/ale/util.vim:466
+Called 41 times
+Total time:   0.004147
+ Self time:   0.004147
+
+count  total (s)   self (s)
+   41              0.000047     if a:chr < 2
+    2              0.000002         return a:chr
+   39              0.000026     endif
+                            
+   39              0.004009     return strlen(join(split(a:str, '\zs')[0:a:chr - 2], '')) + 1
+
+FUNCTIONS SORTED ON TOTAL TIME
+count  total (s)   self (s)  function
+    1   0.023404   0.000086  <SNR>108_VimCloseCallback()
+    1   0.023303   0.000057  <SNR>108_VimExitCallback()
+    1   0.023204   0.000164  <SNR>103_ExitCallback()
+    1   0.022936   0.000099  <SNR>102_HandleExit()
+ 1000   0.022573             GetPythonIndent()
+    1   0.019662   0.000433  ale#engine#HandleLoclist()
+    1   0.013863   0.000062  ale#Queue()
+    1   0.013684   0.000140  <SNR>85_Lint()
+    1   0.012997   0.000045  ale#engine#RunLinters()
+    1   0.012910   0.000070  <SNR>102_GetLintFileValues()
+    1   0.012794   0.000275  <SNR>102_RunLinters()
+    1   0.012155   0.000063  <SNR>102_RunLinter()
+    1   0.010122   0.000153  <SNR>102_RunIfExecutable()
+    1   0.009396   0.004368  ale#engine#FixLocList()
+    1   0.008364   0.000199  ale#engine#SetResults()
+    1   0.007404   0.000097  ale#sign#SetSigns()
+    3   0.005822   0.000092  ale_linters#python#flake8#GetExecutable()
+    3   0.005569   0.000104  ale#python#FindExecutable()
+    3   0.005397   0.002952  ale#python#FindVirtualenv()
+    1   0.005231   0.000233  <SNR>102_RunJob()
+
+FUNCTIONS SORTED ON SELF TIME
+count  total (s)   self (s)  function
+ 1000              0.022573  GetPythonIndent()
+    1   0.009396   0.004368  ale#engine#FixLocList()
+   41              0.004147  ale#util#Col()
+    3   0.005397   0.002952  ale#python#FindVirtualenv()
+    1              0.002257  ale#util#Writefile()
+  172              0.002082  ale#path#Simplify()
+   41              0.002063  ale#GetLocItemMessage()
+    1   0.003109   0.001958  ale_linters#python#flake8#Handle()
+    1   0.003595   0.001858  <SNR>111_BuildSignMap()
+    1   0.001401   0.001389  ale#sign#ParseSigns()
+   90   0.001361   0.001332  ale#util#LocItemCompare()
+    1   0.001178   0.001170  ale#sign#GetSignCommands()
+   38   0.001725   0.001129  ale#sign#GetSignName()
+    1              0.001004  ale#util#GetMatches()
+   41   0.001519   0.000947  <SNR>108_VimOutputCallback()
+    1              0.000825  ale#util#GetLineCount()
+    1   0.002847   0.000772  <SNR>112_FixList()
+    1   0.000793   0.000751  ale#job#Start()
+    3              0.000696  ale#util#BinarySearch()
+    1   0.003717   0.000632  ale#command#FormatCommand()
+

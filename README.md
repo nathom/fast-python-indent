@@ -2,7 +2,7 @@
 
 An indent file for vim.
 
-The current indent files included with vim, and the other ones that I have tried,
+The indent files included with vim, and the other ones that I have tried,
 are very slow. When `profile`ing, they consistently marked as the functions that slow
 down vim the most.
 

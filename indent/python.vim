@@ -17,7 +17,7 @@ let b:closing_delims = '[]})]'
 " multiline dicts, lists, sets, tuples definition
 let b:multiline_item_regex = '^\s*[a-zA-Z_][0-9a-zA-Z_]* = ' . b:opening_delims . '$'
 
-function GetPythonIndent(lnum)
+function! GetPythonIndent(lnum)
     let l:prevline = getline(a:lnum - 1)
 
     if l:prevline[-1:] =~ b:opening_delims
